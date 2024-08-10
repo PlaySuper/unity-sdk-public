@@ -1,0 +1,13 @@
+{
+  "name": "com.playsuper.unity",
+  "version": "1.0.0",
+  "displayName": "PlaySuper",
+  "description": "",
+  "unity": "2020.3",
+  "author": {
+    "name": "PlaySuper",
+    "email": "lakshya.satpal@playsuper.club",
+    "url": "https://playsuper.club"
+  },
+  "dependencies": {}
+}
