@@ -1,8 +1,8 @@
 using UnityEngine;
 using Gpm.WebView;
 
-using System.Collections.Generic;
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,9 +13,9 @@ namespace PlaySuperUnity
     {
 
         private static PlaySuperUnitySDK _instance;
-        private static string gameId;
+        private static string apiKey;
 
-        public static void Initialize(string _gameId)
+        public static void Initialize(string _apiKey)
         {
             if (_instance == null)
             {
@@ -23,11 +23,9 @@ namespace PlaySuperUnity
                 _instance = sdkObject.AddComponent<PlaySuperUnitySDK>();
                 DontDestroyOnLoad(sdkObject);
 
-                gameId = _gameId;
+                apiKey = _apiKey;
 
-                // TODO: Add initialization logic here
-                // For example: Set API key and endpoint, establish a connection, etc.
-                Debug.Log("PlaySuperUnity initialized with Game ID: " + gameId);
+                Debug.Log("PlaySuperUnity initialized with API Key: " + apiKey);
             }
         }
 
@@ -45,43 +43,50 @@ namespace PlaySuperUnity
         }
 
 
-        public async void SendCoins(string playerId, string coinId, int amount)
+        public async void SendCoins(string coinId, int amount)
         {
             var client = new HttpClient();
-            var jsonPayload = @"{
-                ""playerId"": ""efca8dc7-0a15-4a8c-8135-cf5819f856f0"",
-                ""amount"": 200
-            }";
+            var playerId = "efca8dc7-0a15-4a8c-8135-cf5819f856f0";
+            var jsonPayload = $@"{{
+                ""playerId"": ""{playerId}"",
+                ""amount"": {amount}
+            }}";
 
             var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+            var url = $"https://dev.playsuper.club/coins/{coinId}/distribute";
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "https://dev.playsuper.club/coins/d2935b01-033e-43cf-afae-7eeccbfa544c/distribute")
+            var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
                 Content = content
             };
 
             request.Headers.Accept.Clear();
             request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*"));
-            request.Headers.Add("x-api-key", "5021b57a47046539eb11643cbdbd958a820ae26d22d88af0dde8264155c72090");
+            request.Headers.Add("x-api-key", apiKey);
 
             var response = await client.SendAsync(request);
 
             if (response.IsSuccessStatusCode)
             {
-                // Read the response content
                 var responseContent = await response.Content.ReadAsStringAsync();
                 Debug.Log("Response received successfully:");
                 Debug.Log(responseContent);
             }
             else
             {
-                Debug.Log($"Error: {response.StatusCode}");
+                Debug.Log($"Error: {response}");
             }
         }
 
         public void OpenStore()
         {
             WebView.ShowUrlFullScreen();
+        }
+
+        internal class SendCoinsPayload
+        {
+            public string playerId { get; set; }
+            public int amount { get; set; }
         }
     }
 }
