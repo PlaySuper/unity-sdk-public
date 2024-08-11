@@ -10,7 +10,7 @@ namespace PlaySuperUnity
         public static void ShowUrlFullScreen()
         {
             GpmWebView.ShowUrl(
-                "http://192.168.223.180:5173/",
+                "https://playsuper.club",
                 new GpmWebViewRequest.Configuration()
                 {
                     style = GpmWebViewStyle.FULLSCREEN,
@@ -33,7 +33,7 @@ namespace PlaySuperUnity
                 OnCallback,
                 new List<string>()
                 {
-            "USER_ CUSTOM_SCHEME"
+            "USER_CUSTOM_SCHEME"
                 });
         }
 

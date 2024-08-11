@@ -43,12 +43,11 @@ namespace PlaySuperUnity
         }
 
 
-        public async void SendCoins(string coinId, int amount)
+        public async void DistributeCoins(string coinId, int amount)
         {
             var client = new HttpClient();
-            var playerId = "efca8dc7-0a15-4a8c-8135-cf5819f856f0";
+            var token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjQ4NWRlYi01NGIxLTQyMjEtYjJmMS1mYjc5NjFiMzM4NjgiLCJwaG9uZSI6Iis5MTk0NjA2MTAxODAiLCJpYXQiOjE3MjMzNjYwNzUsImV4cCI6MTcyNTk1ODA3NX0.Lncf3jn8WRq3B8RY62IiXV3bxjO_szuoE9tKBC3jC6g";
             var jsonPayload = $@"{{
-                ""playerId"": ""{playerId}"",
                 ""amount"": {amount}
             }}";
 
@@ -63,6 +62,7 @@ namespace PlaySuperUnity
             request.Headers.Accept.Clear();
             request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*"));
             request.Headers.Add("x-api-key", apiKey);
+            request.Headers.Add("Authorization", $"Bearer {token}");
 
             var response = await client.SendAsync(request);
 
@@ -81,12 +81,6 @@ namespace PlaySuperUnity
         public void OpenStore()
         {
             WebView.ShowUrlFullScreen();
-        }
-
-        internal class SendCoinsPayload
-        {
-            public string playerId { get; set; }
-            public int amount { get; set; }
         }
     }
 }
