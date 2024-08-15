@@ -15,6 +15,7 @@ namespace PlaySuperUnity
         private static PlaySuperUnitySDK _instance;
         private static string apiKey;
 
+        private string authToken;
         public static void Initialize(string _apiKey)
         {
             if (_instance == null)
@@ -45,8 +46,12 @@ namespace PlaySuperUnity
 
         public async void DistributeCoins(string coinId, int amount)
         {
+            if (authToken == null)
+            {
+                TransactionsManager.AddTransaction(coinId, amount);
+                return;
+            }
             var client = new HttpClient();
-            var token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjQ4NWRlYi01NGIxLTQyMjEtYjJmMS1mYjc5NjFiMzM4NjgiLCJwaG9uZSI6Iis5MTk0NjA2MTAxODAiLCJpYXQiOjE3MjMzNjYwNzUsImV4cCI6MTcyNTk1ODA3NX0.Lncf3jn8WRq3B8RY62IiXV3bxjO_szuoE9tKBC3jC6g";
             var jsonPayload = $@"{{
                 ""amount"": {amount}
             }}";
@@ -62,7 +67,7 @@ namespace PlaySuperUnity
             request.Headers.Accept.Clear();
             request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*"));
             request.Headers.Add("x-api-key", apiKey);
-            request.Headers.Add("Authorization", $"Bearer {token}");
+            request.Headers.Add("Authorization", $"Bearer {authToken}");
 
             var response = await client.SendAsync(request);
 
@@ -74,13 +79,24 @@ namespace PlaySuperUnity
             }
             else
             {
-                Debug.Log($"Error: {response}");
+                Debug.Log($"Error from DistributeCoins: {response}");
             }
         }
 
         public void OpenStore()
         {
             WebView.ShowUrlFullScreen();
+        }
+
+        internal void setAuthToken(string _token)
+        {
+            authToken = _token;
+            Debug.Log("Auth Token is set now: " + _token);
+        }
+
+        public bool isLoggedIn()
+        {
+            return authToken.Length > 0;
         }
     }
 }
