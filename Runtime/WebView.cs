@@ -133,9 +133,9 @@ namespace PlaySuperUnity
         {
             Debug.Log("OnCallback: " + callbackType);
             Debug.Log("data: " + data);
-            if (data.Contains("setToken"))
+            if (data.Contains("sendTokenToSDK"))
             {
-                GpmWebView.ExecuteJavaScript("localStorage.getItem('token');");
+                GpmWebView.ExecuteJavaScript("localStorage.getItem('authToken');");
             }
             switch (callbackType)
             {
@@ -143,7 +143,7 @@ namespace PlaySuperUnity
                     if (string.IsNullOrEmpty(data) == false)
                     {
                         Debug.LogFormat("ExecuteJavascript data : {0}, error : {1}", data, error);
-                        PlaySuperUnitySDK.Instance.setAuthToken(data);
+                        PlaySuperUnitySDK.Instance.OnTokenReceive(data);
                     }
                     break;
             }

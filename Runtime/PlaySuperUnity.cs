@@ -88,15 +88,24 @@ namespace PlaySuperUnity
             WebView.ShowUrlFullScreen();
         }
 
-        internal void setAuthToken(string _token)
+        internal void OnTokenReceive(string _token)
         {
             authToken = _token;
             Debug.Log("Auth Token is set now: " + _token);
+            List<Transaction> transactions = TransactionsManager.GetTransactions();
+            if (transactions != null)
+            {
+                foreach (Transaction t in transactions)
+                {
+                    Debug.Log("Distributing coins: " + t.GetAmount() + " of " + t.GetCoinId());
+                    PlaySuperUnitySDK.Instance.DistributeCoins(t.GetCoinId(), t.GetAmount());
+                }
+            }
         }
 
-        public bool isLoggedIn()
+        public bool IsLoggedIn()
         {
-            return authToken.Length > 0;
+            return !string.IsNullOrEmpty(authToken);
         }
     }
 }

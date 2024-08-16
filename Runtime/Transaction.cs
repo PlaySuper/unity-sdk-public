@@ -54,5 +54,15 @@ namespace PlaySuperUnity
             coinId = _coinId;
             amount = _amount;
         }
+
+        public string GetCoinId()
+        {
+            return coinId;
+        }
+
+        public int GetAmount()
+        {
+            return amount;
+        }
     }
 }
