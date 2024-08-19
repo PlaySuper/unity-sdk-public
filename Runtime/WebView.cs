@@ -10,13 +10,13 @@ namespace PlaySuperUnity
         public static void ShowUrlFullScreen()
         {
             GpmWebView.ShowUrl(
-                "https://playsuper.club/",
+                "https://store.playsuper.club/",
                 new GpmWebViewRequest.Configuration()
                 {
                     style = GpmWebViewStyle.FULLSCREEN,
                     orientation = GpmOrientation.UNSPECIFIED,
-                    isClearCookie = false,
-                    isClearCache = false,
+                    isClearCookie = true,
+                    isClearCache = true,
                     backgroundColor = "#FFFFFF",
                     isNavigationBarVisible = true,
                     navigationBarColor = "#4B96E6",
@@ -131,19 +131,22 @@ namespace PlaySuperUnity
             string data,
             GpmWebViewError error)
         {
-            Debug.Log("OnCallback: " + callbackType);
-            Debug.Log("data: " + data);
-            if (data.Contains("sendTokenToSDK"))
-            {
-                GpmWebView.ExecuteJavaScript("localStorage.getItem('authToken');");
-            }
             switch (callbackType)
             {
-                case GpmWebViewCallback.CallbackType.ExecuteJavascript:
-                    if (string.IsNullOrEmpty(data) == false)
+                case GpmWebViewCallback.CallbackType.PageStarted:
+                    GpmWebView.ExecuteJavaScript("localStorage.getItem('authToken');");
+                    Debug.LogFormat("PageStarted data : {0}, error : {1}", data, error);
+                    if (data == "https://store.playsuper.club/")
                     {
-                        Debug.LogFormat("ExecuteJavascript data : {0}, error : {1}", data, error);
-                        PlaySuperUnitySDK.Instance.OnTokenReceive(data);
+                        string js = $"localStorage.setItem('apiKey', '{PlaySuperUnitySDK.Instance.GetApiKey()}')";
+                        GpmWebView.ExecuteJavaScript(js);
+                    }
+                    break;
+                case GpmWebViewCallback.CallbackType.ExecuteJavascript:
+                    Debug.LogFormat("ExecuteJavascript data : {0}, error : {1}", data, error);
+                    if (string.IsNullOrEmpty(data) == false && data.Length > 2 && data != "null")
+                    {
+                        PlaySuperUnitySDK.Instance.OnTokenReceive(data.Substring(1, data.Length - 2));
                     }
                     break;
             }

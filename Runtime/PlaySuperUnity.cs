@@ -49,6 +49,7 @@ namespace PlaySuperUnity
             if (authToken == null)
             {
                 TransactionsManager.AddTransaction(coinId, amount);
+                Debug.Log("Transaction stored in local: " + PlayerPrefs.GetString("transactions"));
                 return;
             }
             var client = new HttpClient();
@@ -57,7 +58,7 @@ namespace PlaySuperUnity
             }}";
 
             var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-            var url = $"https://dev.playsuper.club/coins/{coinId}/distribute";
+            var url = $"https://api.playsuper.club/coins/{coinId}/distribute";
 
             var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
@@ -90,22 +91,93 @@ namespace PlaySuperUnity
 
         internal void OnTokenReceive(string _token)
         {
+            if (IsLoggedIn()) return;
+            if (!TransactionsManager.HasTransactions()) return;
             authToken = _token;
-            Debug.Log("Auth Token is set now: " + _token);
+            Debug.Log("auth token is set: " + _token);
             List<Transaction> transactions = TransactionsManager.GetTransactions();
-            if (transactions != null)
+            Dictionary<string, int> coinMap = new Dictionary<string, int>();
+            foreach (Transaction t in transactions)
             {
-                foreach (Transaction t in transactions)
+                if (coinMap.ContainsKey(t.coinId))
                 {
-                    Debug.Log("Distributing coins: " + t.GetAmount() + " of " + t.GetCoinId());
-                    PlaySuperUnitySDK.Instance.DistributeCoins(t.GetCoinId(), t.GetAmount());
+                    coinMap[t.coinId] += t.amount;
+                }
+                else
+                {
+                    coinMap.Add(t.coinId, t.amount);
                 }
             }
+            foreach (KeyValuePair<string, int> kvp in coinMap)
+            {
+                Debug.Log("Distributing coins: " + kvp.Value + " of " + kvp.Key);
+                DistributeCoins(kvp.Key, kvp.Value);
+            }
+            TransactionsManager.ClearTransactions();
         }
+
+        // internal async Dictionary<string, int> GetBalance()
+        // {
+        //     if (authToken == null)
+        //     {
+        //         string json = PlayerPrefs.GetString("transactions");
+        //         TransactionListWrapper wrapper = JsonUtility.FromJson<TransactionListWrapper>(json);
+        //         List<Transaction> transactionList = wrapper.transactions;
+        //         Dictionary<string, int> dict = new Dictionary<string, int>();
+        //         foreach (Transaction t in transactionList)
+        //         {
+        //             if (dict.ContainsKey(t.coinId))
+        //             {
+        //                 dict[t.coinId] += t.amount;
+        //             }
+        //             else
+        //             {
+        //                 dict.Add(t.coinId, t.amount);
+        //             }
+        //         }
+        //         return dict;
+        //     }
+        //     else
+        //     {
+        //         var client = new HttpClient();
+        //         var url = $"https://api.playsuper.club/player/funds";
+
+        //         var request = new HttpRequestMessage(HttpMethod.Post, url);
+
+        //         request.Headers.Accept.Clear();
+        //         request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*"));
+        //         request.Headers.Add("x-api-key", apiKey);
+        //         request.Headers.Add("Authorization", $"Bearer {authToken}");
+
+        //         var response = await client.SendAsync(request);
+
+        //         if (response.IsSuccessStatusCode)
+        //         {
+        //             var responseContent = await response.Content.ReadAsStringAsync();
+        //             Debug.Log("Response received successfully:");
+        //             Debug.Log(responseContent.data);
+        //         }
+        //         else
+        //         {
+        //             Debug.Log($"Error from DistributeCoins: {response}");
+        //         }
+        //         return;
+        //     }
+        // }
 
         public bool IsLoggedIn()
         {
             return !string.IsNullOrEmpty(authToken);
+        }
+
+        internal string GetApiKey()
+        {
+            return apiKey;
+        }
+
+        internal string GetAuthToken()
+        {
+            return authToken;
         }
     }
 }

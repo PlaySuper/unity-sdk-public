@@ -17,7 +17,8 @@ namespace PlaySuperUnity
 
         public static void SaveTransactions()
         {
-            string json = JsonUtility.ToJson(transactionList);
+            TransactionListWrapper wrapper = new TransactionListWrapper(transactionList);
+            string json = JsonUtility.ToJson(wrapper);
             PlayerPrefs.SetString(saveKey, json);
             PlayerPrefs.Save();
         }
@@ -32,8 +33,6 @@ namespace PlaySuperUnity
         {
             if (PlayerPrefs.HasKey(saveKey))
             {
-                string json = JsonUtility.ToJson(transactionList);
-                transactionList = JsonUtility.FromJson<List<Transaction>>(json);
                 return transactionList;
             }
             else
@@ -42,27 +41,33 @@ namespace PlaySuperUnity
             }
         }
 
+        public static bool HasTransactions()
+        {
+            return transactionList.Count > 0;
+        }
     }
+
+    [System.Serializable]
+    internal class TransactionListWrapper
+    {
+        public List<Transaction> transactions;
+
+        public TransactionListWrapper(List<Transaction> transactions)
+        {
+            this.transactions = transactions;
+        }
+    }
+
     [System.Serializable]
     internal class Transaction
     {
-        private string coinId;
-        private int amount;
+        public string coinId;
+        public int amount;
 
         public Transaction(string _coinId, int _amount)
         {
-            coinId = _coinId;
-            amount = _amount;
-        }
-
-        public string GetCoinId()
-        {
-            return coinId;
-        }
-
-        public int GetAmount()
-        {
-            return amount;
+            this.coinId = _coinId;
+            this.amount = _amount;
         }
     }
 }
