@@ -16,7 +16,7 @@ namespace PlaySuperUnity
         private static string apiKey;
 
         private string authToken;
-        public static void Initialize(string _apiKey)
+        public static async void Initialize(string _apiKey)
         {
             if (_instance == null)
             {
@@ -27,6 +27,7 @@ namespace PlaySuperUnity
                 apiKey = _apiKey;
 
                 Debug.Log("PlaySuperUnity initialized with API Key: " + apiKey);
+                List<CoinBalance> b = await _instance.GetBalance();
             }
         }
 
@@ -114,56 +115,95 @@ namespace PlaySuperUnity
                 DistributeCoins(kvp.Key, kvp.Value);
             }
             TransactionsManager.ClearTransactions();
+            GpmWebView.ExecuteJavaScript("window.location.reload()");
         }
 
-        // internal async Dictionary<string, int> GetBalance()
-        // {
-        //     if (authToken == null)
-        //     {
-        //         string json = PlayerPrefs.GetString("transactions");
-        //         TransactionListWrapper wrapper = JsonUtility.FromJson<TransactionListWrapper>(json);
-        //         List<Transaction> transactionList = wrapper.transactions;
-        //         Dictionary<string, int> dict = new Dictionary<string, int>();
-        //         foreach (Transaction t in transactionList)
-        //         {
-        //             if (dict.ContainsKey(t.coinId))
-        //             {
-        //                 dict[t.coinId] += t.amount;
-        //             }
-        //             else
-        //             {
-        //                 dict.Add(t.coinId, t.amount);
-        //             }
-        //         }
-        //         return dict;
-        //     }
-        //     else
-        //     {
-        //         var client = new HttpClient();
-        //         var url = $"https://api.playsuper.club/player/funds";
+        internal async Task<List<CoinBalance>> GetBalance()
+        {
+            if (authToken == null)
+            {
+                var client = new HttpClient();
 
-        //         var request = new HttpRequestMessage(HttpMethod.Post, url);
+                CoinResponse coinData = null;
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                client.DefaultRequestHeaders.Add("x-api-key", apiKey);
 
-        //         request.Headers.Accept.Clear();
-        //         request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*"));
-        //         request.Headers.Add("x-api-key", apiKey);
-        //         request.Headers.Add("Authorization", $"Bearer {authToken}");
+                HttpResponseMessage response = await client.GetAsync("https://api.playsuper.club/coins");
 
-        //         var response = await client.SendAsync(request);
+                if (response.IsSuccessStatusCode)
+                {
+                    string coinJson = await response.Content.ReadAsStringAsync();
+                    coinData = JsonUtility.FromJson<CoinResponse>(coinJson);
+                    Debug.Log("coin data set:" + coinJson);
+                    string json = PlayerPrefs.GetString("transactions");
+                    TransactionListWrapper wrapper = JsonUtility.FromJson<TransactionListWrapper>(json);
+                    List<Transaction> transactionList = wrapper.transactions;
+                    List<CoinBalance> balances = new List<CoinBalance>();
+                    Debug.Log(coinData.data);
+                    foreach (Coin c in coinData.data)
+                    {
+                        CoinBalance cb = new CoinBalance(c.id, c.name, c.url, 0);
+                        balances.Add(cb);
+                    }
+                    foreach (Transaction t in transactionList)
+                    {
+                        foreach (CoinBalance cb in balances)
+                        {
+                            if (cb.id == t.coinId)
+                            {
+                                cb.amount += t.amount;
+                            }
+                        }
+                    }
+                    return balances;
+                }
+                else
+                {
+                    Debug.LogError($"Error in fetching coins for game: {response.StatusCode}");
+                    return null;
+                }
+            }
+            else
+            {
+                var client = new HttpClient();
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
 
-        //         if (response.IsSuccessStatusCode)
-        //         {
-        //             var responseContent = await response.Content.ReadAsStringAsync();
-        //             Debug.Log("Response received successfully:");
-        //             Debug.Log(responseContent.data);
-        //         }
-        //         else
-        //         {
-        //             Debug.Log($"Error from DistributeCoins: {response}");
-        //         }
-        //         return;
-        //     }
-        // }
+                HttpResponseMessage response = await client.GetAsync("https://api.playsuper.club/player/funds");
+
+                FundResponse fundsData = null;
+                List<CoinBalance> balances = new List<CoinBalance>();
+                if (response.IsSuccessStatusCode)
+                {
+                    string fundsJson = await response.Content.ReadAsStringAsync();
+                    fundsData = JsonUtility.FromJson<FundResponse>(fundsJson);
+                    if (fundsData.data != null)
+                    {
+                        foreach (PlayerCoin pc in fundsData.data)
+                        {
+                            CoinBalance cb = new CoinBalance(pc.coinId, pc.coin.name, pc.coin.pictureUrl, pc.balance);
+                            balances.Add(cb);
+                        }
+                    }
+
+                    foreach (CoinBalance balance in balances)
+                    {
+                        Debug.Log(balance.ToString());
+                    }
+
+                    return balances;
+                }
+                else
+                {
+                    Debug.LogError($"Error from GetBalance: {response}");
+                    return null;
+                }
+
+            }
+        }
 
         public bool IsLoggedIn()
         {
