@@ -146,9 +146,27 @@ namespace PlaySuperUnity
                     Debug.LogFormat("ExecuteJavascript data : {0}, error : {1}", data, error);
                     if (string.IsNullOrEmpty(data) == false && data.Length > 2 && data != "null")
                     {
-                        PlaySuperUnitySDK.Instance.OnTokenReceive(data.Substring(1, data.Length - 2));
+                        // Extract the token
+                        int startIndex = 14;
+                        int endIndex = data.IndexOf("\"", startIndex);
+                        string token = data.Substring(startIndex, endIndex - startIndex - 1);
+
+                        PlaySuperUnitySDK.Instance.OnTokenReceive(token);
                     }
                     break;
+            }
+        }
+
+        [System.Serializable]
+        internal class TokenResponse
+        {
+            public string value;
+            public long expiry;
+
+            public TokenResponse(string _value, long _expiry)
+            {
+                this.value = _value;
+                this.expiry = _expiry;
             }
         }
     }

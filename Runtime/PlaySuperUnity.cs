@@ -16,7 +16,8 @@ namespace PlaySuperUnity
         private static string apiKey;
 
         private string authToken;
-        public static async void Initialize(string _apiKey)
+
+        public static void Initialize(string _apiKey)
         {
             if (_instance == null)
             {
@@ -27,7 +28,6 @@ namespace PlaySuperUnity
                 apiKey = _apiKey;
 
                 Debug.Log("PlaySuperUnity initialized with API Key: " + apiKey);
-                List<CoinBalance> b = await _instance.GetBalance();
             }
         }
 
@@ -93,9 +93,10 @@ namespace PlaySuperUnity
         internal void OnTokenReceive(string _token)
         {
             if (IsLoggedIn()) return;
-            if (!TransactionsManager.HasTransactions()) return;
             authToken = _token;
             Debug.Log("auth token is set: " + _token);
+
+            if (!TransactionsManager.HasTransactions()) return;
             List<Transaction> transactions = TransactionsManager.GetTransactions();
             Dictionary<string, int> coinMap = new Dictionary<string, int>();
             foreach (Transaction t in transactions)
@@ -135,12 +136,8 @@ namespace PlaySuperUnity
                 {
                     string coinJson = await response.Content.ReadAsStringAsync();
                     coinData = JsonUtility.FromJson<CoinResponse>(coinJson);
-                    Debug.Log("coin data set:" + coinJson);
-                    string json = PlayerPrefs.GetString("transactions");
-                    TransactionListWrapper wrapper = JsonUtility.FromJson<TransactionListWrapper>(json);
-                    List<Transaction> transactionList = wrapper.transactions;
+                    List<Transaction> transactionList = GetLocalTransactions();
                     List<CoinBalance> balances = new List<CoinBalance>();
-                    Debug.Log(coinData.data);
                     foreach (Coin c in coinData.data)
                     {
                         CoinBalance cb = new CoinBalance(c.id, c.name, c.url, 0);
@@ -156,6 +153,7 @@ namespace PlaySuperUnity
                             }
                         }
                     }
+
                     return balances;
                 }
                 else
@@ -172,12 +170,14 @@ namespace PlaySuperUnity
                 client.DefaultRequestHeaders.Add("x-api-key", apiKey);
                 client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
 
+                // Get balance from PlaySuper API
                 HttpResponseMessage response = await client.GetAsync("https://api.playsuper.club/player/funds");
 
                 FundResponse fundsData = null;
                 List<CoinBalance> balances = new List<CoinBalance>();
                 if (response.IsSuccessStatusCode)
                 {
+
                     string fundsJson = await response.Content.ReadAsStringAsync();
                     fundsData = JsonUtility.FromJson<FundResponse>(fundsJson);
                     if (fundsData.data != null)
@@ -188,10 +188,17 @@ namespace PlaySuperUnity
                             balances.Add(cb);
                         }
                     }
-
-                    foreach (CoinBalance balance in balances)
+                    // Add balance from local transactions
+                    List<Transaction> transactionList = GetLocalTransactions();
+                    foreach (Transaction t in transactionList)
                     {
-                        Debug.Log(balance.ToString());
+                        for (int i = 0; i < balances.Count; i++)
+                        {
+                            if (t.coinId == balances[i].id)
+                            {
+                                balances[i].id += t.amount;
+                            }
+                        }
                     }
 
                     return balances;
@@ -201,7 +208,6 @@ namespace PlaySuperUnity
                     Debug.LogError($"Error from GetBalance: {response}");
                     return null;
                 }
-
             }
         }
 
@@ -219,5 +225,15 @@ namespace PlaySuperUnity
         {
             return authToken;
         }
+
+        internal static List<Transaction> GetLocalTransactions()
+        {
+            string json = PlayerPrefs.GetString("transactions");
+            TransactionListWrapper wrapper = JsonUtility.FromJson<TransactionListWrapper>(json);
+            return wrapper.transactions;
+        }
+
+
+
     }
 }
