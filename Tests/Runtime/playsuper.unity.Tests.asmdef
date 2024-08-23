@@ -1,0 +1,11 @@
+{
+  "name": "playsuper.unity.Runtime.Tests",
+  "references": [
+    "PlaySuper.Unity.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": []
+}

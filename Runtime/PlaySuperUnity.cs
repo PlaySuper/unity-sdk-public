@@ -232,8 +232,5 @@ namespace PlaySuperUnity
             TransactionListWrapper wrapper = JsonUtility.FromJson<TransactionListWrapper>(json);
             return wrapper.transactions;
         }
-
-
-
     }
 }

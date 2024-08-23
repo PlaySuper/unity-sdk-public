@@ -156,18 +156,5 @@ namespace PlaySuperUnity
                     break;
             }
         }
-
-        [System.Serializable]
-        internal class TokenResponse
-        {
-            public string value;
-            public long expiry;
-
-            public TokenResponse(string _value, long _expiry)
-            {
-                this.value = _value;
-                this.expiry = _expiry;
-            }
-        }
     }
 }
