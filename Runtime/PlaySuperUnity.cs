@@ -29,6 +29,10 @@ namespace PlaySuperUnity
 
                 Debug.Log("PlaySuperUnity initialized with API Key: " + apiKey);
             }
+            else
+            {
+                Debug.LogError("PlaySuperUnity Instance already initialized");
+            }
         }
 
 
