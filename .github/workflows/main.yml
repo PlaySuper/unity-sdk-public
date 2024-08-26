@@ -26,6 +26,10 @@ jobs:
           githubToken: ${{ secrets.GH_TOKEN }}
           packageMode: true
           unityVersion: 2022.3.38f1
+          customParameters: |
+            -executeMethod UnityEditor.PackageManager.Client.Add \
+            "com.unity.ugui@1.0.0" \
+            "com.unity.textmeshpro@3.0.6"
 
       - name: Store Test Results
         uses: actions/upload-artifact@v3
