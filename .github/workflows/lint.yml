@@ -1,0 +1,29 @@
+name: Lint
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    dotnet-lint-check:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+            
+            - name: Install .NET SDK
+              uses: actions/setup-dotnet@v3
+              with:
+                dotnet-version: '8.x' 
+            
+            - name: Restore dependencies
+              run: dotnet restore
+            
+            - name: Run Linting
+              run: dotnet format . --verify-no-changes
+
+            
