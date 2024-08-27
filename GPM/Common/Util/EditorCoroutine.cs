@@ -85,10 +85,10 @@ namespace Gpm.Common.Util
 
             return result;
         }
-        
+
         private bool CheckMoveNext(IEnumerator enumerator)
         {
-            if (current is EditorCoroutine )
+            if (current is EditorCoroutine)
             {
                 if ((current as EditorCoroutine).IsDone == true)
                 {

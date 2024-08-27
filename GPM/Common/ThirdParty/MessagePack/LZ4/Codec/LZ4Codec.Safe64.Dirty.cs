@@ -188,7 +188,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.LZ4
                         dst_p = _i;
                     }
 
-                    _next_match:
+                _next_match:
                     // Encode Offset
                     Poke2(dst, dst_p, (ushort)(src_p - src_ref));
                     dst_p += 2;
@@ -278,7 +278,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.LZ4
                     h_fwd = (((Peek4(src, src_p)) * 2654435761u) >> HASH_ADJUST);
                 }
 
-                _last_literals:
+            _last_literals:
                 // Encode Last Literals
                 {
                     var lastRun = (src_end - src_anchor);
@@ -419,7 +419,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.LZ4
                         dst_p = _i;
                     }
 
-                    _next_match:
+                _next_match:
                     // Encode Offset
                     Poke2(dst, dst_p, (ushort)(src_p - src_ref));
                     dst_p += 2;
@@ -510,7 +510,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.LZ4
                     h_fwd = (((Peek4(src, src_p)) * 2654435761u) >> HASH64K_ADJUST);
                 }
 
-                _last_literals:
+            _last_literals:
                 // Encode Last Literals
                 {
                     var lastRun = (src_end - src_anchor);
@@ -661,7 +661,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.LZ4
                 // end of decoding
                 return ((src_p) - src_0);
 
-                _output_error:
+            _output_error:
                 // write overflow error detected
                 return (-((src_p) - src_0));
             }

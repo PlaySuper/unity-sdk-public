@@ -36,7 +36,7 @@ namespace Gpm.Common.Util
         }
     }
 
-    public class MonoObject:MonoBehaviour
+    public class MonoObject : MonoBehaviour
     {
     }
 }

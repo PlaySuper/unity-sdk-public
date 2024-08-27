@@ -12,7 +12,7 @@ namespace Gpm.WebView.Internal
             if (callback == null)
             {
                 return -1;
-            }   
+            }
 
             callbackDic.Add(handle, callback);
             return handle++;

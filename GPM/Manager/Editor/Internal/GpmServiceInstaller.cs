@@ -26,7 +26,7 @@ namespace Gpm.Manager.Internal
         public ServiceInfo ProcessService { get; private set; }
 
         public bool IsProcessing { get { return ProcessService != null; } }
-        
+
         public void Install(ServiceInfo service, Action<ManagerError> callback)
         {
             if (IsProcessing == true)
@@ -34,7 +34,7 @@ namespace Gpm.Manager.Internal
                 callback(new ManagerError(ManagerErrorCode.INSTALL, ManagerStrings.ERROR_MESSAGE_ALREADY_INSTALL));
                 return;
             }
-            
+
             if (service == null)
             {
                 callback(new ManagerError(ManagerErrorCode.INSTALL, ManagerStrings.ERROR_MESSAGE_PARAMETER, "Install service info null."));
@@ -56,7 +56,7 @@ namespace Gpm.Manager.Internal
                 {
                     continue;
                 }
-                
+
                 InstallInfo.Service dependencyServiceInfo = GpmManager.Instance.Install.GetInstallInfo(dependencyServiceName);
                 bool installable = (dependencyServiceInfo == null || string.IsNullOrEmpty(dependencyServiceInfo.version) == true) ? true : dependencyInfo.Value.version.VersionGreaterThan(dependencyServiceInfo.version);
                 if (installable == true)
@@ -86,7 +86,7 @@ namespace Gpm.Manager.Internal
                         GpmManager.IsLock = false;
                         return;
                     }
-                    
+
                     EditorApplication.LockReloadAssemblies();
                     try
                     {
@@ -112,7 +112,7 @@ namespace Gpm.Manager.Internal
                             string packagePath = ManagerPaths.GetCachingPath(packageInfo.serviceName, packageInfo.serviceVersion, packageInfo.packageName);
 
                             AssetDatabase.Refresh();
-                            
+
                             var responseCode = GpmCompress.ExtractUnityPackage(packagePath, ManagerPaths.TEMP_PATH, ManagerPaths.PROJECT_ROOT_PATH);
                             if (responseCode == CompressResultCode.SUCCESS)
                             {
@@ -123,7 +123,7 @@ namespace Gpm.Manager.Internal
                                 ProcessService = null;
                                 throw new Exception(string.Format("Unpack error. Code= {0}", responseCode));
                             }
-                            
+
                             List<string> dependencies = new List<string>();
                             foreach (var dependencyInfo in service.dependencies)
                             {
@@ -170,7 +170,7 @@ namespace Gpm.Manager.Internal
                             else
                             {
                                 GpmManagerIndicator.SendInstall(packageInfo.serviceName, packageInfo.serviceVersion, service.title);
-                            }   
+                            }
                         }
 
                         callback(null);

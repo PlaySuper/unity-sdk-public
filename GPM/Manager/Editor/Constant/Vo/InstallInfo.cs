@@ -8,7 +8,7 @@ namespace Gpm.Manager.Constant
 {
     [Serializable]
     internal class InstallInfo
-    {   
+    {
         [Serializable]
         public class Service
         {
@@ -19,7 +19,7 @@ namespace Gpm.Manager.Constant
         }
 
         public List<Service> installs;
-        
+
         public string GetInstallVersion(string serviceName)
         {
             if (installs != null && installs.Count > 0)
@@ -52,11 +52,11 @@ namespace Gpm.Manager.Constant
         {
             if (installs != null && installs.Count > 0)
             {
-                var serviceList = installs.FindAll(data => 
+                var serviceList = installs.FindAll(data =>
                 {
-                    if(data.dependency != null)
+                    if (data.dependency != null)
                     {
-                        for(int i=0;i< data.dependency.Length;i++)
+                        for (int i = 0; i < data.dependency.Length; i++)
                         {
                             if (data.dependency[i].Equals(serviceName, StringComparison.OrdinalIgnoreCase) == true)
                             {

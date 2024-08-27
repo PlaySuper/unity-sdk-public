@@ -3,7 +3,7 @@
     public class CommunicatorImplementation
     {
         private static readonly CommunicatorImplementation instance = new CommunicatorImplementation();
-                
+
         private Communicator communicator;
 
         public static CommunicatorImplementation Instance

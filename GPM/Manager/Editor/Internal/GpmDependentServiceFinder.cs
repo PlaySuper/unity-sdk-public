@@ -40,7 +40,7 @@ namespace Gpm.Manager.Internal
                             builder.AppendFormat("\n- {0}", service);
                         }
 
-                        callback(new ManagerError(ManagerErrorCode.UNINSTALL, string.Format(ManagerInfos.GetString(ManagerStrings.ERROR_MESSAGE_DEPENDENCY_SERVICE_REMOVE_FAILED), builder.ToString()), isFullMessage : true));
+                        callback(new ManagerError(ManagerErrorCode.UNINSTALL, string.Format(ManagerInfos.GetString(ManagerStrings.ERROR_MESSAGE_DEPENDENCY_SERVICE_REMOVE_FAILED), builder.ToString()), isFullMessage: true));
                     }
                 }));
         }
@@ -52,7 +52,7 @@ namespace Gpm.Manager.Internal
             ManagerError occurrenceError = null;
             foreach (var service in installedServices)
             {
-                IEnumerator innerCoroutineEnumerator = RefreshServiceInfo(service.name, (serviceInfo, error) => 
+                IEnumerator innerCoroutineEnumerator = RefreshServiceInfo(service.name, (serviceInfo, error) =>
                 {
                     occurrenceError = error;
 
@@ -93,7 +93,7 @@ namespace Gpm.Manager.Internal
                 {
                     errorMessage = ManagerStrings.ERROR_MESSAGE_NETWORK;
                     errorSubMessage = string.Format("Service= {0}, Code= {1}, Message= {2}", serviceName, request.responseCode, request.error);
-                    isError = true;                    
+                    isError = true;
                     return;
                 }
                 else if (Common.UnityWebRequestHelper.IsError(request) == true)
@@ -120,7 +120,7 @@ namespace Gpm.Manager.Internal
                             service = xmlData;
                         });
                 }
-                
+
             });
 
             if (isError == true)

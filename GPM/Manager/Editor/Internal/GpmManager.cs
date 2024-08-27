@@ -189,7 +189,7 @@ namespace Gpm.Manager.Internal
             }
 
             RequestServiceInfo(
-                CurrentServiceInfo.title, 
+                CurrentServiceInfo.title,
                 (result, newError) =>
                 {
                     if (newError != null && newError.ErrorCode == ManagerErrorCode.SERVICE_INFO_NOT_CHANGE)
@@ -273,7 +273,7 @@ namespace Gpm.Manager.Internal
 
             string servicePath = GpmPathUtil.Combine(serviceName, ManagerPaths.SERVICE_FILE_NAME);
 
-            Action<ServiceInfo, ManagerError> responseCallback = 
+            Action<ServiceInfo, ManagerError> responseCallback =
                 (info, error) =>
                 {
                     loadingServiceNames.Remove(serviceName);
@@ -312,8 +312,8 @@ namespace Gpm.Manager.Internal
                                 return;
                             }
 
-                            if (cachedServiceInfos.ContainsKey(serviceName) == true && 
-                                string.IsNullOrEmpty(cachedServiceInfos[serviceName].infoVersion) == false && 
+                            if (cachedServiceInfos.ContainsKey(serviceName) == true &&
+                                string.IsNullOrEmpty(cachedServiceInfos[serviceName].infoVersion) == false &&
                                 cachedServiceInfos[serviceName].infoVersion.Equals(xmlData.infoVersion) == true)
                             {
                                 responseCallback(null, new ManagerError(ManagerErrorCode.SERVICE_INFO_NOT_CHANGE,
@@ -373,7 +373,7 @@ namespace Gpm.Manager.Internal
                         string serviceLanguageName = ManagerInfos.GetServiceLanguageName(serviceInfo.Key);
                         GpmMultilanguage.SelectLanguageByCode(serviceLanguageName, languageCode, (code, message) => { });
                     }
-                    
+
                     Advertisement.SetLanguageCode(CurrentLanguageCode);
                     GpmNotice.SetLanguageCode(languageCode);
                     ManagerInfos.LastLanguage = CurrentLanguageCode;
@@ -404,7 +404,7 @@ namespace Gpm.Manager.Internal
 
                 EditorCoroutine.Start(SendRequest(
                     urlPath,
-                    
+
                     (request) =>
                     {
                         if (UnityWebRequestHelper.IsError(request) == true)
@@ -423,7 +423,7 @@ namespace Gpm.Manager.Internal
                                 false));
                             return;
                         }
-                        
+
                         string directoryName = Path.GetDirectoryName(localFilepath);
                         if (string.IsNullOrEmpty(directoryName) == false && Directory.Exists(directoryName) == false)
                         {
@@ -574,7 +574,7 @@ namespace Gpm.Manager.Internal
                     }
                 }));
         }
-        
+
         internal static IEnumerator SendRequest(string path, Action<UnityWebRequest> callback)
         {
             string url = GpmPathUtil.UrlCombine(CdnUri, path);

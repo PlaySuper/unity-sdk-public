@@ -22,7 +22,7 @@ namespace Gpm.Manager.Notice
         private static Status statusLanguage = Status.NONE;
         private static Status statusNotice = Status.NONE;
         private static NoticeInfo noticeInfo;
-        
+
         public static void Initialize(string languageCode)
         {
             if (statusLanguage == Status.NONE)
@@ -139,7 +139,7 @@ namespace Gpm.Manager.Notice
                 }
             }
         }
-        
+
 
         public static void SetLanguageCode(string languageCode)
         {

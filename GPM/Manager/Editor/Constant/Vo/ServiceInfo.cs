@@ -80,7 +80,7 @@ namespace Gpm.Manager.Constant
 
         [XmlIgnore]
         public Dictionary<string, DependencyInfo> dependencies;
-        
+
         [XmlAnyElement("dependencies")]
         public XmlElement XmlDependencies
         {

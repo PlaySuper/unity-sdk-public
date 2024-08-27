@@ -19,7 +19,7 @@ namespace Gpm.Manager.Constant
             [XmlElement("menu")]
             public List<Menu> list;
         }
-        
+
         public string version;
         public MenuList menuList;
         public string mail = string.Empty;

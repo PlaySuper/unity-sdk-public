@@ -26,7 +26,7 @@ namespace Gpm.Manager.Ui
 
         private List<string> dependencyList = new List<string>();
         private List<string> usingServiceNameList = new List<string>();
-        
+
 
         private Vector2 infoScrollPos;
 
@@ -81,7 +81,7 @@ namespace Gpm.Manager.Ui
 
                         usingServiceNameList.Clear();
                         var usingServiceList = GpmManager.Instance.Install.GetUsingServiceList(service.title);
-                        for(int i=0;i< usingServiceList.Count;i++)
+                        for (int i = 0; i < usingServiceList.Count; i++)
                         {
                             usingServiceNameList.Add(usingServiceList[i].name);
                         }
@@ -138,7 +138,7 @@ namespace Gpm.Manager.Ui
 
             EditorGUI.EndDisabledGroup();
         }
-        
+
         public Texture2D GetImage()
         {
             Texture2D texture = null;
@@ -204,7 +204,7 @@ namespace Gpm.Manager.Ui
                                     bool canUpdate = service.version.VersionGreaterThan(installedVersion);
 
                                     EditorGUI.BeginDisabledGroup(installableUnityVersion == false || GpmManager.ServiceInstaller.IsProcessing == true);
-                                    {    
+                                    {
                                         EditorGUI.BeginDisabledGroup(canUpdate == false);
 
                                         string updateText;
@@ -216,7 +216,7 @@ namespace Gpm.Manager.Ui
                                         {
                                             updateText = ManagerInfos.GetString(ManagerStrings.SERVICE_UPDATE);
                                         }
-                                        
+
                                         if (GUILayout.Button(updateText, GUILayout.ExpandWidth(false)) == true)
                                         {
                                             GpmManager.ServiceInstaller.Install(service, OnServiceInstallCompleted);
@@ -396,7 +396,7 @@ namespace Gpm.Manager.Ui
 
             Rect scrollUpButton = new Rect(0, 0, listWidth, ManagerUiDefine.IMAGE_LIST_SCROLL_BUTTON);
             Rect scrollDownButton = new Rect(0, listHeight, listWidth, ManagerUiDefine.IMAGE_LIST_SCROLL_BUTTON);
-            
+
             if (imageScrollPosY > 0 && ManagerUi.Button(scrollUpButton, ManagerStrings.LIST_SCROLL_UP, ManagerUiStyle.ImageScrollButton) == true)
             {
                 EditorCoroutine.Start(DoImageScroll(imageScrollPosY, imageScrollPosY - ManagerUiDefine.IMAGE_LIST_ITEM_INTERVAL, (value) =>
@@ -453,7 +453,7 @@ namespace Gpm.Manager.Ui
                     imageRect.y += ManagerUiDefine.IMAGE_LIST_ITEM_INTERVAL;
                 }
             }
-            
+
             if (imageScrollPosY > 0)
             {
                 ManagerUi.Button(scrollUpButton, ManagerStrings.LIST_SCROLL_UP, ManagerUiStyle.ImageScrollButton);

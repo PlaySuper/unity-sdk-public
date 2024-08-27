@@ -99,7 +99,7 @@ namespace Gpm.Common.Multilanguage.Internal
 
             return value;
         }
-        
+
         public string GetSelectLanguage()
         {
             return selectLanguage;

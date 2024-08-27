@@ -72,7 +72,7 @@ namespace Gpm.Common
                             request.error,
                             request.downloadHandler.text), GpmIndicator.SERVICE_NAME, GetType());
             }
-            else if(string.IsNullOrEmpty(request.downloadHandler.text) == true)
+            else if (string.IsNullOrEmpty(request.downloadHandler.text) == true)
             {
                 GpmLogger.Debug(EMPTY_CONTENT_MESSAGE, GpmIndicator.SERVICE_NAME, GetType());
             }
@@ -123,7 +123,7 @@ namespace Gpm.Common
                 if ((HttpStatusCode)request.responseCode != HttpStatusCode.OK)
                 {
                     return true;
-                }   
+                }
             }
 
             return false;

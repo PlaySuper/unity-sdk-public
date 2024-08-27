@@ -106,7 +106,7 @@ namespace Gpm.Common.Multilanguage.Internal
             }
         }
 
-#region Load Process
+        #region Load Process
 
         private void LoadLocalFile(string localPath, Action<MultilanguageResultCode, MultilanguageXml, string> callback)
         {
@@ -223,7 +223,7 @@ namespace Gpm.Common.Multilanguage.Internal
                 callback(resultCode, dataText, resultMessage);
             }
         }
-#endregion
+        #endregion
 
         private bool IsWebPath(string path)
         {

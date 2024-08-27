@@ -19,9 +19,9 @@ namespace Gpm.Common.Indicator.Internal
         private const string KEY_CUSTOM_BODY = "body";
 
         public static byte[] CreateSendData(
-            string appKey, 
+            string appKey,
             string logVersion,
-            string serviceName, 
+            string serviceName,
             string serviceVersion,
             string body,
             Dictionary<string, string> customData)
@@ -43,7 +43,7 @@ namespace Gpm.Common.Indicator.Internal
             sendData.Add(KEY_CUSTOM_SERVICE_NAME, serviceName);
             sendData.Add(KEY_CUSTOM_SERVICE_VERSION, serviceVersion);
             sendData.Add(KEY_CUSTOM_BODY, body);
-            
+
             if (customData == null)
             {
                 return Encoding(sendData);

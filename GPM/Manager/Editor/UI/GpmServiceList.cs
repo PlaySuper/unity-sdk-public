@@ -70,7 +70,7 @@ namespace Gpm.Manager.Ui
                 Rect itemRect = new Rect(0, index * height, rect.width, height);
 
                 bool selected = (index == selectedIndex);
-                
+
                 if (GUI.Button(itemRect, "", selected ? ManagerUiStyle.ListSelectedButton : ManagerUiStyle.ListNormalButton) == true)
                 {
                     selectedIndex = index;

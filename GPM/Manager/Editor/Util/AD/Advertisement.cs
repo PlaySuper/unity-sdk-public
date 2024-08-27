@@ -15,7 +15,7 @@ namespace Gpm.Manager.Ad
         {
             AdvertisementImplementation.Instance.Draw();
         }
-        
+
         public static void SetSelectAdvertisementInfoCallback(System.Action<string, string> selectAdvertisementInfoCallback)
         {
             AdvertisementImplementation.Instance.SetSelectAdvertisementInfoCallback(selectAdvertisementInfoCallback);

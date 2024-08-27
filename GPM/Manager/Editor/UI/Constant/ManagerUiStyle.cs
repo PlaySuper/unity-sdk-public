@@ -135,7 +135,7 @@ namespace Gpm.Manager.Ui.Helper
             {
                 alignment = TextAnchor.MiddleCenter,
                 fontSize = 10,
-                normal = { textColor = Color.gray}
+                normal = { textColor = Color.gray }
             };
 
             MiddleCenterLabel = new GUIStyle(GUI.skin.label)

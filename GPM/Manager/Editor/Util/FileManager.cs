@@ -29,13 +29,13 @@ namespace Gpm.Manager.Util
                     remoteFilename,
                     (stateCode, message, data) =>
                     {
-                        if(StateCode.SUCCESS == stateCode)
+                        if (StateCode.SUCCESS == stateCode)
                         {
                             try
                             {
                                 File.WriteAllBytes(localFilename, data);
                                 callback(StateCode.SUCCESS, null);
-                            }                            
+                            }
                             catch (Exception e)
                             {
                                 callback(StateCode.UNKNOWN_ERROR, e.Message);
@@ -67,7 +67,7 @@ namespace Gpm.Manager.Util
                     (stateCode, message, data) =>
                     {
                         string encoding = null;
-                        if(data != null)
+                        if (data != null)
                         {
                             encoding = System.Text.Encoding.Default.GetString(data);
                         }
