@@ -8,5 +8,9 @@
     "name": "PlaySuper",
     "email": "lakshya.satpal@playsuper.club",
     "url": "https://playsuper.club"
+  },
+  "dependencies": {
+    "com.unity.ugui": "1.0.0",
+    "com.unity.textmeshpro": "1.0.0"
   }
 }
