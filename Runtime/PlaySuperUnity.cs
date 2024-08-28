@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using Gpm.WebView;
 
@@ -6,6 +7,8 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+
+[assembly: InternalsVisibleTo("playsuper.unity.Runtime.Tests")]
 
 namespace PlaySuperUnity
 {
@@ -49,7 +52,7 @@ namespace PlaySuperUnity
         }
 
 
-        public async void DistributeCoins(string coinId, int amount)
+        public async Task DistributeCoins(string coinId, int amount)
         {
             if (authToken == null)
             {
@@ -85,7 +88,7 @@ namespace PlaySuperUnity
             }
             else
             {
-                Debug.Log($"Error from DistributeCoins: {response}");
+                Debug.LogError($"Error from DistributeCoins: {response}");
             }
         }
 
@@ -123,7 +126,7 @@ namespace PlaySuperUnity
             GpmWebView.ExecuteJavaScript("window.location.reload()");
         }
 
-        internal async Task<List<CoinBalance>> GetBalance()
+        public async Task<List<CoinBalance>> GetBalance()
         {
             if (authToken == null)
             {
@@ -228,6 +231,12 @@ namespace PlaySuperUnity
         internal string GetAuthToken()
         {
             return authToken;
+        }
+
+
+        internal void SetAuthToken(string token)
+        {
+            this.authToken = token;
         }
 
         internal static List<Transaction> GetLocalTransactions()

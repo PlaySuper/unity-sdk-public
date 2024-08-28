@@ -25,6 +25,7 @@ jobs:
         with:
           projectPath: .
           githubToken: ${{ secrets.GITHUB_TOKEN }}
+          customParameters: -e TEST_API_KEY=${{secrets.TEST_API_KEY}} -e TEST_COIN_ID=${{secrets.TEST_COIN_ID}} -e TEST_TOKEN=${{secrets.TEST_TOKEN}}
           packageMode: true
           unityVersion: 2022.3.38f1
 
