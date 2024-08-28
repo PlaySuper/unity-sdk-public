@@ -20,10 +20,21 @@ namespace PlaySuperUnity
 
         private string authToken;
 
+        private static string baseUrl;
+
         public static void Initialize(string _apiKey)
         {
             if (_instance == null)
             {
+                string env = Environment.GetEnvironmentVariable("PROJECT_ENV") ?? "production";
+                if (env == "development")
+                {
+                    baseUrl = "https://dev.playsuper.club";
+                }
+                else
+                {
+                    baseUrl = "https://api.playsuper.club";
+                }
                 GameObject sdkObject = new GameObject("PlaySuper");
                 _instance = sdkObject.AddComponent<PlaySuperUnitySDK>();
                 DontDestroyOnLoad(sdkObject);
@@ -54,6 +65,7 @@ namespace PlaySuperUnity
 
         public async Task DistributeCoins(string coinId, int amount)
         {
+            Debug.Log(baseUrl);
             if (authToken == null)
             {
                 TransactionsManager.AddTransaction(coinId, amount);
@@ -66,7 +78,7 @@ namespace PlaySuperUnity
             }}";
 
             var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-            var url = $"https://api.playsuper.club/coins/{coinId}/distribute";
+            var url = $"{baseUrl}/coins/{coinId}/distribute";
 
             var request = new HttpRequestMessage(HttpMethod.Post, url)
             {
@@ -97,7 +109,7 @@ namespace PlaySuperUnity
             WebView.ShowUrlFullScreen();
         }
 
-        internal void OnTokenReceive(string _token)
+        internal async void OnTokenReceive(string _token)
         {
             if (IsLoggedIn()) return;
             authToken = _token;
@@ -120,7 +132,7 @@ namespace PlaySuperUnity
             foreach (KeyValuePair<string, int> kvp in coinMap)
             {
                 Debug.Log("Distributing coins: " + kvp.Value + " of " + kvp.Key);
-                DistributeCoins(kvp.Key, kvp.Value);
+                await DistributeCoins(kvp.Key, kvp.Value);
             }
             TransactionsManager.ClearTransactions();
             GpmWebView.ExecuteJavaScript("window.location.reload()");
@@ -137,7 +149,7 @@ namespace PlaySuperUnity
                 client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
                 client.DefaultRequestHeaders.Add("x-api-key", apiKey);
 
-                HttpResponseMessage response = await client.GetAsync("https://api.playsuper.club/coins");
+                HttpResponseMessage response = await client.GetAsync($"{baseUrl}/coins");
 
                 if (response.IsSuccessStatusCode)
                 {
@@ -178,7 +190,7 @@ namespace PlaySuperUnity
                 client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
 
                 // Get balance from PlaySuper API
-                HttpResponseMessage response = await client.GetAsync("https://api.playsuper.club/player/funds");
+                HttpResponseMessage response = await client.GetAsync($"{baseUrl}/player/funds");
 
                 FundResponse fundsData = null;
                 List<CoinBalance> balances = new List<CoinBalance>();

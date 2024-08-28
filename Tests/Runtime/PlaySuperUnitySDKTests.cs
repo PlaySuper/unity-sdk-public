@@ -1,28 +1,36 @@
 using NUnit.Framework;
 using PlaySuperUnity;
 using System.Collections;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.TestTools;
+using System;
 
 
 namespace PlaySuperUnity.Tests
 {
     public class PlaySuperUnitySDKTests
     {
-        private string testApiKey;
-        private string testCoinId;
-
-        private string testToken;
+        private string testApiKey, testCoinId, testToken;
 
         private PlaySuperUnitySDK ps;
+
+        [OneTimeSetUp]
+        public void GlobalSetup()
+        {
+            Environment.SetEnvironmentVariable("PROJECT_ENV", "development");
+
+            var envVars = GetEnvironmentVariables();
+            string testApiKey = envVars.ContainsKey("TEST_API_KEY") ? envVars["TEST_API_KEY"] : null;
+            Debug.Log("testApiKey: " + testApiKey);
+            string testCoinId = envVars.ContainsKey("TEST_COIN_ID") ? envVars["TEST_COIN_ID"] : null;
+            string testToken = envVars.ContainsKey("TEST_TOKEN") ? envVars["TEST_TOKEN"] : null;
+        }
 
         [SetUp]
         public void Setup()
         {
-            testApiKey = System.Environment.GetEnvironmentVariable("TEST_API_KEY");
-            testCoinId = System.Environment.GetEnvironmentVariable("TEST_COIN_ID");
-            testToken = System.Environment.GetEnvironmentVariable("TEST_TOKEN");
             PlaySuperUnitySDK.Initialize(testApiKey);
             ps = PlaySuperUnitySDK.Instance;
         }
@@ -32,7 +40,7 @@ namespace PlaySuperUnity.Tests
         {
             if (ps != null && ps.gameObject != null)
             {
-                Object.DestroyImmediate(ps.gameObject);
+                UnityEngine.Object.DestroyImmediate(ps.gameObject);
             }
         }
 
@@ -62,6 +70,26 @@ namespace PlaySuperUnity.Tests
             yield return new WaitForSeconds(1);
 
             LogAssert.Expect(LogType.Log, "Response received successfully:");
+        }
+
+        private static Dictionary<string, string> GetEnvironmentVariables()
+        {
+            Dictionary<string, string> envVariables = new Dictionary<string, string>();
+            string[] args = Environment.GetCommandLineArgs();
+
+            foreach (var arg in args)
+            {
+                if (arg.StartsWith("-e "))
+                {
+                    string[] splitArg = arg.Substring(3).Split('=');
+                    if (splitArg.Length == 2)
+                    {
+                        envVariables[splitArg[0]] = splitArg[1];
+                    }
+                }
+            }
+
+            return envVariables;
         }
     }
 }

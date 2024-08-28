@@ -1,3 +1,3 @@
-## PlaySuper UnitySDK for game developers to distribute coins to gamers
+# PlaySuperUnity SDK for game developers to distribute coins to gamers
 
 currently under development...
