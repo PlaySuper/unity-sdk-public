@@ -23,7 +23,6 @@ namespace PlaySuperUnity.Tests
 
             var envVars = GetEnvironmentVariables();
             string testApiKey = envVars.ContainsKey("TEST_API_KEY") ? envVars["TEST_API_KEY"] : null;
-            Debug.Log("testApiKey: " + testApiKey);
             string testCoinId = envVars.ContainsKey("TEST_COIN_ID") ? envVars["TEST_COIN_ID"] : null;
             string testToken = envVars.ContainsKey("TEST_TOKEN") ? envVars["TEST_TOKEN"] : null;
         }
@@ -31,6 +30,7 @@ namespace PlaySuperUnity.Tests
         [SetUp]
         public void Setup()
         {
+            Debug.Log("testApiKey: " + testApiKey);
             PlaySuperUnitySDK.Initialize(testApiKey);
             ps = PlaySuperUnitySDK.Instance;
         }
@@ -76,7 +76,7 @@ namespace PlaySuperUnity.Tests
         {
             Dictionary<string, string> envVariables = new Dictionary<string, string>();
             string[] args = Environment.GetCommandLineArgs();
-
+            Debug.Log("args: " + args);
             foreach (var arg in args)
             {
                 if (arg.StartsWith("-e "))
@@ -88,6 +88,8 @@ namespace PlaySuperUnity.Tests
                     }
                 }
             }
+
+            Debug.Log("args: " + envVariables);
 
             return envVariables;
         }
