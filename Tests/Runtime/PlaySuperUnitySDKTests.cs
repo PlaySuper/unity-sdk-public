@@ -12,6 +12,7 @@ namespace PlaySuperUnity.Tests
 {
     public class PlaySuperUnitySDKTests
     {
+        private const string TEST_API_KEY_ENV = "TEST_API_KEY", TEST_COIN_ID_ENV = "TEST_COIN_ID", TEST_TOKEN_ENV = "TEST_TOKEN";
         private string testApiKey, testCoinId, testToken;
 
         private PlaySuperUnitySDK ps;
@@ -21,16 +22,15 @@ namespace PlaySuperUnity.Tests
         {
             Environment.SetEnvironmentVariable("PROJECT_ENV", "development");
 
-            var envVars = GetEnvironmentVariables();
-            string testApiKey = envVars.ContainsKey("TEST_API_KEY") ? envVars["TEST_API_KEY"] : null;
-            string testCoinId = envVars.ContainsKey("TEST_COIN_ID") ? envVars["TEST_COIN_ID"] : null;
-            string testToken = envVars.ContainsKey("TEST_TOKEN") ? envVars["TEST_TOKEN"] : null;
+            Dictionary<string, string> envVars = GetEnvironmentVariables();
+            testApiKey = envVars.ContainsKey(TEST_API_KEY_ENV) ? envVars[TEST_API_KEY_ENV] : null;
+            testCoinId = envVars.ContainsKey(TEST_COIN_ID_ENV) ? envVars[TEST_COIN_ID_ENV] : null;
+            testToken = envVars.ContainsKey(TEST_TOKEN_ENV) ? envVars[TEST_TOKEN_ENV] : null;
         }
 
         [SetUp]
         public void Setup()
         {
-            Debug.Log("testApiKey: " + testApiKey);
             PlaySuperUnitySDK.Initialize(testApiKey);
             ps = PlaySuperUnitySDK.Instance;
         }
@@ -67,7 +67,7 @@ namespace PlaySuperUnity.Tests
             ps.OnTokenReceive(testToken);
 
             yield return ps.DistributeCoins(testCoinId, 10);
-            yield return new WaitForSeconds(1);
+            yield return new WaitForSeconds(2);
 
             LogAssert.Expect(LogType.Log, "Response received successfully:");
         }
@@ -76,20 +76,16 @@ namespace PlaySuperUnity.Tests
         {
             Dictionary<string, string> envVariables = new Dictionary<string, string>();
             string[] args = Environment.GetCommandLineArgs();
-            Debug.Log("args: " + args[0] + " " + args[1] + " " + args[2]);
-            foreach (var arg in args)
+            for (int i = 0; i < args.Length - 1; i++)
             {
-                if (arg.StartsWith("-e "))
+                if (args[i] == "-e" && i + 1 < args.Length)
                 {
-                    string[] splitArg = arg.Substring(3).Split('=');
-                    if (splitArg.Length == 2)
-                    {
-                        envVariables[splitArg[0]] = splitArg[1];
-                    }
+                    string secretString = args[i + 1];
+                    string[] pair = secretString.Split('=');
+                    envVariables[pair[0]] = pair[1];
                 }
             }
-
-            Debug.Log("envVariables: " + envVariables["TEST_API_KEY"] + " " + envVariables["TEST_COIN_ID"] + " " + envVariables["TEST_TOKEN"]);
+            Debug.Log("envVariables: " + envVariables[TEST_API_KEY_ENV] + " " + envVariables[TEST_COIN_ID_ENV] + " " + envVariables[TEST_TOKEN_ENV]);
 
             return envVariables;
         }
