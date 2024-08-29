@@ -76,6 +76,7 @@ namespace PlaySuperUnity.Tests
         {
             Dictionary<string, string> envVariables = new Dictionary<string, string>();
             string[] args = Environment.GetCommandLineArgs();
+            Debug.Log("args: " + args[0] + " " + args[1] + " " + args[2]);
             foreach (var arg in args)
             {
                 if (arg.StartsWith("-e "))
