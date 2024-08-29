@@ -76,7 +76,6 @@ namespace PlaySuperUnity.Tests
         {
             Dictionary<string, string> envVariables = new Dictionary<string, string>();
             string[] args = Environment.GetCommandLineArgs();
-            Debug.Log("args: " + args);
             foreach (var arg in args)
             {
                 if (arg.StartsWith("-e "))
@@ -89,7 +88,7 @@ namespace PlaySuperUnity.Tests
                 }
             }
 
-            Debug.Log("args: " + envVariables);
+            Debug.Log("envVariables: " + envVariables["TEST_API_KEY"] + " " + envVariables["TEST_COIN_ID"] + " " + envVariables["TEST_TOKEN"]);
 
             return envVariables;
         }
