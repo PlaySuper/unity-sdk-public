@@ -27,7 +27,7 @@ namespace Gpm.Common.Indicator.Internal
 
         private void SetLaunchingInfo(Config config)
         {
-            GetLaunchingInfo(config , (launchingInfo) =>
+            GetLaunchingInfo(config, (launchingInfo) =>
             {
                 if (launchingInfo == null)
                 {
@@ -159,7 +159,7 @@ namespace Gpm.Common.Indicator.Internal
 
         protected virtual bool IsWaitingInChild()
         {
-            if(isWaitQueue ==  true)
+            if (isWaitQueue == true)
             {
                 if (queueItem != null && queueItem.isRunning == true)
                 {

@@ -3,7 +3,7 @@
     public class GpmCommunicatorVO
     {
         public class Configuration
-        {            
+        {
             public string className;
         }
 

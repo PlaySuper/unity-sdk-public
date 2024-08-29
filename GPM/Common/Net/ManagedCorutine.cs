@@ -20,9 +20,9 @@ namespace Gpm.Common
 
         public ManagedCoroutine parent;
 
-    #if RECORD_CORUTINE_STACK
+#if RECORD_CORUTINE_STACK
         public System.Diagnostics.StackTrace stackTrace = null;
-    #endif
+#endif
         public class EnumeratorStack
         {
             public EnumeratorStack(IEnumerator enumerator) { this.enumerator = enumerator; }
@@ -59,19 +59,19 @@ namespace Gpm.Common
             type = routine.GetType();
             name = type.ToString();
 
-    #if RECORD_CORUTINE_STACK
-        #if UNITY_EDITOR
+#if RECORD_CORUTINE_STACK
+#if UNITY_EDITOR
             stackTrace = new System.Diagnostics.StackTrace(skipFrames, true);
-        #else
+#else
             stackTrace = new System.Diagnostics.StackTrace(skipFrames, false);
-        #endif
-    #endif
+#endif
+#endif
             if (currentManagedCoroutine.Count > 0)
             {
                 parent = currentManagedCoroutine.Peek();
             }
 
-    #if RECORD_CORUTINE_STACK
+#if RECORD_CORUTINE_STACK
             if(parent != null)
             {
                 foreach(var frame in stackTrace.GetFrames())
@@ -84,7 +84,7 @@ namespace Gpm.Common
                 }
             
             }
-    #endif
+#endif
 
 #endif
             StartCoroutine(routine);
@@ -158,11 +158,11 @@ namespace Gpm.Common
                 }
                 catch(System.Exception ex)
                 {
-    #if RECORD_CORUTINE_STACK
+#if RECORD_CORUTINE_STACK
                     throw new ManagedCoroutineException(this, ex);
-    #else
+#else
                     throw ex;
-    #endif
+#endif
 
                     break;
                 }
@@ -185,9 +185,9 @@ namespace Gpm.Common
                 }
             }
 
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
             coEditorCoroutine = null;
-    #endif
+#endif
             coRoroutine = null;
 
             ManagedCoroutineInstance.managedList.Remove(this);

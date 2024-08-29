@@ -75,7 +75,7 @@ namespace Gpm.Manager.Ui
         private void SendRuntimeLog()
         {
             long endTime = ManagerTime.Now.Ticks;
-            
+
             string startTimeText = ManagerTime.ToLogString(openTime);
             string endTimeText = ManagerTime.ToLogString(endTime);
 
@@ -231,7 +231,7 @@ namespace Gpm.Manager.Ui
 
         private void DoToolbarGUI()
         {
-            if(GpmManager.Instance.SupportInfo == null)
+            if (GpmManager.Instance.SupportInfo == null)
             {
                 return;
             }
@@ -240,7 +240,7 @@ namespace Gpm.Manager.Ui
             {
                 using (new EditorGUILayout.HorizontalScope(GUILayout.ExpandWidth(true)))
                 {
-                    if(GpmManager.Instance.SupportInfo.menuList != null)
+                    if (GpmManager.Instance.SupportInfo.menuList != null)
                     {
                         foreach (var menu in GpmManager.Instance.SupportInfo.menuList.list)
                         {
@@ -281,7 +281,7 @@ namespace Gpm.Manager.Ui
                     if (GpmManager.Instance.SupportInfo != null)
                     {
                         string lastVersion = GpmManager.Instance.SupportInfo.version;
-                        if(lastVersion != null)
+                        if (lastVersion != null)
                         {
                             bool canUpdate = lastVersion.VersionGreaterThan(GpmManagerVersion.VERSION);
 
@@ -513,8 +513,8 @@ namespace Gpm.Manager.Ui
             }
 
             Rect imageRect = new Rect((position.width - imageWidth) * 0.5f, (position.height - imageHeight) * 0.5f, imageWidth, imageHeight);
-            Rect textRect = new Rect(imageRect.x, imageRect.y - 30f, imageWidth, 100);            
-            
+            Rect textRect = new Rect(imageRect.x, imageRect.y - 30f, imageWidth, 100);
+
 
             EditorGUI.DrawPreviewTexture(imageRect, texture);
             ManagerUi.LabelValue(textRect, serviceDetail.SelectedImageInfo.title, ManagerUiStyle.ImageTitleLabel);

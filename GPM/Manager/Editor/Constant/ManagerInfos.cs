@@ -18,7 +18,7 @@ namespace Gpm.Manager.Constant
         public const int KOREA_STANDARD_TIME = 9;
 
         private const string LANGUAGE_CODE_KEY = "gpm.manager.language";
-        
+
         public static string LastLanguage
         {
             get

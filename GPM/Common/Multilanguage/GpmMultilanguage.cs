@@ -5,12 +5,12 @@ namespace Gpm.Common.Multilanguage
     public static class GpmMultilanguage
     {
         public const string SERVICE_NAME = "Multilanguage";
-        
+
         public static void SetDafaultLoader(IMultilanguageLoader loader)
         {
             MultilanguageImplementation.Instance.SetDafaultLoader(loader);
         }
-        
+
         public static void Load(IMultilanguageLoader loader, string serviceName, string filepath, MultilanguageCallback callback)
         {
             MultilanguageImplementation.Instance.Load(loader, serviceName, filepath, callback);

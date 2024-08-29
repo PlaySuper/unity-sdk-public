@@ -141,7 +141,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.Internal
 {
     using Formatters;
     using Resolvers;
-    
+
     internal static class StandardResolverHelper
     {
         public static readonly IFormatterResolver[] DefaultResolvers = new[]

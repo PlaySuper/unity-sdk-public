@@ -347,7 +347,7 @@ namespace Gpm.Common.ThirdParty.MessagePack
                 }
             }
 
-            END:
+        END:
             ValueType = ValueType.String;
             StringValue = sb.ToString();
         }

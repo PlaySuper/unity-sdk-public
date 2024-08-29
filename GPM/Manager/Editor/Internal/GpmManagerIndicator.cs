@@ -21,11 +21,11 @@ namespace Gpm.Manager.Internal
         private const string ACTION_AD = "Ad";
         private const string ACTION_INSTALL = "Install";
         private const string ACTION_UPDATE = "Update";
-        private const string ACTION_REMOVE  = "Remove";
+        private const string ACTION_REMOVE = "Remove";
         private const string ACTION_LINK = "Link";
         private const string ACTION_ACTIVATION = "Activation";
         private const string ACTION_RUNTIME = "Runtime";
-        
+
         private static string guid;
 
         internal static string GetGuid()
@@ -51,7 +51,7 @@ namespace Gpm.Manager.Internal
             return guid;
 
         }
-        
+
         internal static string GetCurtureCode()
         {
 #if UNITY_EDITOR_WIN
@@ -70,10 +70,10 @@ namespace Gpm.Manager.Internal
 
             return curture;
         }
-        
+
         public static void SendAd(string name, string linkUrl)
         {
-            Send(new Dictionary<string, string>() 
+            Send(new Dictionary<string, string>()
             {
                 { KEY_ACTION,             ACTION_AD },
                 { KEY_GUID,               GetGuid() },

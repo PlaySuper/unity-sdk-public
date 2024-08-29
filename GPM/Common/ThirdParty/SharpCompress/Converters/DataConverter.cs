@@ -53,7 +53,7 @@ namespace Gpm.Common.ThirdParty.SharpCompress.Converters
     {
         // Disables the warning: CLS compliance checking will not be performed on
         //  `XXXX' because it is not visible from outside this assembly
-#pragma warning disable  3019
+#pragma warning disable 3019
 	    private static readonly DataConverter SwapConv = new SwapConverter();
 
         public static readonly bool IsLittleEndian = BitConverter.IsLittleEndian;

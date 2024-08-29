@@ -105,7 +105,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.Internal
                 }
             }
 
-            NOT_FOUND:
+        NOT_FOUND:
             value = default(int);
             return false;
         }

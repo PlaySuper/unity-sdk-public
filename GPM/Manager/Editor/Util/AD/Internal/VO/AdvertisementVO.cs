@@ -4,7 +4,7 @@ using System.Xml.Serialization;
 namespace Gpm.Manager.Ad
 {
     public static class AdvertisementVO
-    {        
+    {
         public class Day
         {
             [XmlElement("start")]

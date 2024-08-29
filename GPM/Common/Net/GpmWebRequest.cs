@@ -63,11 +63,11 @@ namespace Gpm.Common
 
         ~GpmWebRequest()
         {
-            if(request != null)
+            if (request != null)
             {
                 request.Dispose();
                 request = null;
-            }   
+            }
         }
 
         public void SetRequestHeader(string name, string value)
@@ -100,13 +100,13 @@ namespace Gpm.Common
             ManagedCoroutine.Start(routine);
 #else
 
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
             if (!UnityEditor.EditorApplication.isPlaying)
             {
                 EditorCoroutine.Start(routine);
                 return;
             }
-    #endif
+#endif
             ManagedCoroutineInstance.Instance.StartCoroutine(routine);
 
 #endif

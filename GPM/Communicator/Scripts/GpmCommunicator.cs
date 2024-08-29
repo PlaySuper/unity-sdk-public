@@ -1,5 +1,5 @@
 ﻿namespace Gpm.Communicator
-{    
+{
     using Gpm.Communicator.Internal;
 
     public class GpmCommunicator
@@ -12,7 +12,7 @@
         }
 
         public static void AddReceiver(string domain, GpmCommunicatorCallback.CommunicatorCallback callback)
-        {            
+        {
             CommunicatorImplementation.Instance.AddReceiver(domain, callback);
         }
 

@@ -120,7 +120,7 @@ namespace Gpm.Manager.Ui.Helper
                     string.Format(ManagerInfos.GetString(ManagerStrings.ERROR_MESSAGE_CUSTOM_MESSAGE), error.SubMessage));
             }
 
-            
+
             if (error.IsOpenDialog == false)
             {
                 GpmLogger.Error(string.Format("{0} - {1}", error.ErrorCode, message), ManagerInfos.SERVICE_NAME, typeof(ManagerUi));

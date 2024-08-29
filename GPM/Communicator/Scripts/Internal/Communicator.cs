@@ -7,7 +7,7 @@
 
     public class Communicator : MonoBehaviour
     {
-        private INativeMessageSender messageSender = null;        
+        private INativeMessageSender messageSender = null;
         private string methodName = "OnAsyncEvent";
         private const string DELIMITER = "${gpm_communicator}";
 
@@ -46,7 +46,7 @@
 
         public void AddReceiver(string domain, GpmCommunicatorCallback.CommunicatorCallback callback)
         {
-            if(receiverDictionary.ContainsKey(domain) == true)
+            if (receiverDictionary.ContainsKey(domain) == true)
             {
                 CommunicatorLogger.Error(
                     string.Format(
@@ -72,8 +72,8 @@
             string responseString = messageSender.CallSync(message.domain, message.data, message.extra);
 
             GpmCommunicatorVO.Message responseMessage = null;
-            
-            if(string.IsNullOrEmpty(responseString) == true)
+
+            if (string.IsNullOrEmpty(responseString) == true)
             {
                 return responseMessage;
             }
@@ -108,11 +108,11 @@
         {
             string[] messageData = message.Split(new string[] { DELIMITER }, StringSplitOptions.None);
 
-            if(messageData == null || messageData.Length == 0)
+            if (messageData == null || messageData.Length == 0)
             {
                 return;
             }
-            
+
             string domain = messageData[0];
             string data = string.Empty;
             string extra = string.Empty;
@@ -122,21 +122,21 @@
                 CommunicatorLogger.Warn(
                     string.Format(
                         "There is no registered receiver : {0}",
-                        domain), 
-                    "GpmCommunicator", 
-                    GetType(), 
+                        domain),
+                    "GpmCommunicator",
+                    GetType(),
                     "OnAsyncEvent");
                 return;
             }
 
             GpmCommunicatorCallback.CommunicatorCallback callback = receiverDictionary[domain];
 
-            if(messageData.Length > 1)
+            if (messageData.Length > 1)
             {
                 data = messageData[1];
             }
 
-            if(messageData.Length > 2)
+            if (messageData.Length > 2)
             {
                 extra = messageData[2];
             }
@@ -147,6 +147,6 @@
                 data = data,
                 extra = extra
             });
-        }        
+        }
     }
 }
