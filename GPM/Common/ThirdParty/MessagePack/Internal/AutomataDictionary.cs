@@ -591,7 +591,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.Internal
                     }
                 }
             }
-            
+
             return dynamicGetKeyMethod;
         }
 

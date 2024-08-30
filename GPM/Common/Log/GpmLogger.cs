@@ -65,7 +65,7 @@ namespace Gpm.Common.Log
                     return;
                 }
             }
-            
+
             UnityEngine.Debug.Log(MakeLog(message, serviceName, classType, methodName));
         }
 

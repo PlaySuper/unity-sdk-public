@@ -21,7 +21,7 @@ namespace Gpm.Common.Multilanguage.Internal
                 return instance;
             }
         }
-        
+
         private Dictionary<string, MultilanguageServiceData> services = new Dictionary<string, MultilanguageServiceData>();
         private IMultilanguageLoader defaultLoader = new MultilanguageLoader();
 
@@ -111,7 +111,7 @@ namespace Gpm.Common.Multilanguage.Internal
                 {
                     return code;
                 }
-                
+
                 try
                 {
                     return CultureInfo.GetCultureInfo(code).NativeName;
@@ -163,7 +163,7 @@ namespace Gpm.Common.Multilanguage.Internal
                         GpmLogger.Error(
                             string.Format("Language information not found. (language code: {0})(message: {1})", code, e.Message),
                             GpmMultilanguage.SERVICE_NAME, GetType());
-                        
+
                         result.Add(code);
                     }
                 }

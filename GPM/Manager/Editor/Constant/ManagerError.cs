@@ -13,7 +13,7 @@ namespace Gpm.Manager.Constant
         SETTING,
         NETWORK,
     }
-    
+
     internal class ManagerError
     {
         public readonly ManagerErrorCode ErrorCode;

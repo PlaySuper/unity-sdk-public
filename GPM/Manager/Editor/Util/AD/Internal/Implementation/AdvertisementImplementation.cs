@@ -46,7 +46,7 @@ namespace Gpm.Manager.Ad.Internal
         private const int OFFSET_GRAY = 1;
 
         private static readonly AdvertisementImplementation instance = new AdvertisementImplementation();
-                
+
         private AdvertisementConfigurations advertisementConfigurations;
         private EditorWindow window;
         private Action<string, string> selectAdvertisementInfoCallback;
@@ -56,7 +56,7 @@ namespace Gpm.Manager.Ad.Internal
         private List<DownloadImagePath> downloadImageList = new List<DownloadImagePath>();
         private Dictionary<string, Texture2D> textureDict = new Dictionary<string, Texture2D>();
         private List<AdvertisementData> drawAdvertisementList = new List<AdvertisementData>();
-        private int advertisementIndex= 0;
+        private int advertisementIndex = 0;
 
         private Rect drawRect;
         private Rect darkRect;
@@ -66,7 +66,7 @@ namespace Gpm.Manager.Ad.Internal
         private Texture2D bgTextureGray;
 
         private bool isInitialize = false;
-                
+
         private double lastTimeSinceStartup;
         private double elapseTime;
 
@@ -77,7 +77,7 @@ namespace Gpm.Manager.Ad.Internal
 
         private AdvertisementImplementation()
         {
-            bgTextureDark = new Texture2D(1,1);
+            bgTextureDark = new Texture2D(1, 1);
             bgTextureDark.SetPixel(0, 0, new Color(0.15f, 0.15f, 0.15f));
             bgTextureDark.Apply();
 
@@ -97,9 +97,9 @@ namespace Gpm.Manager.Ad.Internal
 
             this.drawRect = drawRect;
             this.darkRect = new Rect(
-                drawRect.x - OFFSET_DARK, 
-                drawRect.y - OFFSET_DARK, 
-                drawRect.width + OFFSET_DARK * 2, 
+                drawRect.x - OFFSET_DARK,
+                drawRect.y - OFFSET_DARK,
+                drawRect.width + OFFSET_DARK * 2,
                 drawRect.height + OFFSET_DARK * 2);
             this.grayRect = new Rect(
                 drawRect.x - OFFSET_GRAY,
@@ -109,14 +109,14 @@ namespace Gpm.Manager.Ad.Internal
 
             this.advertisementConfigurations = advertisementConfigurations;
             this.languageCode = languageCode;
-            
+
             this.window = window;
 
             LoadAdvertisement(
                 () =>
                 {
                     DownloadImage(
-                        ()=>
+                        () =>
                         {
                             TrimLanguages();
                             LoadTexture();
@@ -126,12 +126,12 @@ namespace Gpm.Manager.Ad.Internal
                             window.Repaint();
                             isInitialize = true;
                         });
-                });           
+                });
         }
 
         public void SetLanguageCode(string languageCode)
         {
-            if(HasLanguageCode(languageCode) == false)
+            if (HasLanguageCode(languageCode) == false)
             {
                 return;
             }
@@ -143,7 +143,7 @@ namespace Gpm.Manager.Ad.Internal
         public void Draw()
         {
             var advertisementData = GetAdvertisementData();
-            if(advertisementData == null)
+            if (advertisementData == null)
             {
                 return;
             }
@@ -172,13 +172,13 @@ namespace Gpm.Manager.Ad.Internal
 
             GUI.DrawTexture(drawRect, drawTexture);
         }
-        
+
         public void OnDestroy()
         {
             window = null;
             EditorApplication.update -= Update;
         }
-        
+
         public void SetSelectAdvertisementInfoCallback(Action<string, string> selectAdvertisementInfoCallback)
         {
             this.selectAdvertisementInfoCallback = selectAdvertisementInfoCallback;
@@ -231,7 +231,7 @@ namespace Gpm.Manager.Ad.Internal
                             {
                                 advertisements = dataXML;
 
-                                foreach(var ad in advertisements.advertisements)
+                                foreach (var ad in advertisements.advertisements)
                                 {
                                     foreach (var language in advertisementConfigurations.languages)
                                     {
@@ -259,7 +259,7 @@ namespace Gpm.Manager.Ad.Internal
 
                                 callback();
                             }
-                        });                        
+                        });
                     }
                 },
                 null);
@@ -280,14 +280,14 @@ namespace Gpm.Manager.Ad.Internal
 
             var downloadImage = downloadImageList[index++];
 
-            if(Directory.Exists(downloadImage.localPath) == false)
+            if (Directory.Exists(downloadImage.localPath) == false)
             {
                 Directory.CreateDirectory(downloadImage.localPath);
             }
 
             string localFile = string.Format("{0}{1}", downloadImage.localPath, downloadImage.fileName);
 
-            if(File.Exists(localFile) == true)
+            if (File.Exists(localFile) == true)
             {
                 DownloadImage(index, callback);
                 return;
@@ -317,7 +317,7 @@ namespace Gpm.Manager.Ad.Internal
 
                 string[] images = Directory.GetFiles(directoryPath);
 
-                if(images == null || images.Length == 0)
+                if (images == null || images.Length == 0)
                 {
                     advertisementConfigurations.languages = advertisementConfigurations.languages.Where(w => w != language).ToArray();
                 }
@@ -325,17 +325,17 @@ namespace Gpm.Manager.Ad.Internal
 
             foreach (var language in advertisementConfigurations.languages)
             {
-                if(language.Equals(languageCode) == true)
+                if (language.Equals(languageCode) == true)
                 {
                     return;
                 }
             }
 
-            if(advertisementConfigurations.languages.Length > 0)
+            if (advertisementConfigurations.languages.Length > 0)
             {
                 languageCode = advertisementConfigurations.languages[0];
-            }            
-        }        
+            }
+        }
 
         private void LoadTexture()
         {
@@ -350,16 +350,16 @@ namespace Gpm.Manager.Ad.Internal
                         language,
                         ad.imageName
                         );
-                    
+
                     textureDict.Add(filePath, LoadTexture(filePath));
                 }
             }
         }
 
         private Texture2D LoadTexture(string file)
-        {            
+        {
             Texture2D texture = new Texture2D((int)drawRect.width, (int)drawRect.height);
-            texture.LoadImage(File.ReadAllBytes(file));         
+            texture.LoadImage(File.ReadAllBytes(file));
             return texture;
         }
 
@@ -405,7 +405,7 @@ namespace Gpm.Manager.Ad.Internal
 
         private AdvertisementData GetAdvertisementData()
         {
-            if(drawAdvertisementList == null || drawAdvertisementList.Count == 0)
+            if (drawAdvertisementList == null || drawAdvertisementList.Count == 0)
             {
                 return null;
             }
@@ -417,10 +417,10 @@ namespace Gpm.Manager.Ad.Internal
 
             return drawAdvertisementList[advertisementIndex];
         }
-        
+
         private void MakeAdvertisementList()
         {
-            if(advertisements == null)
+            if (advertisements == null)
             {
                 return;
             }
@@ -455,12 +455,12 @@ namespace Gpm.Manager.Ad.Internal
                                 ad.imageName,
                                 ad.link,
                                 key
-                                ));                               
+                                ));
                     }
                 }
             }
 
-            if(drawAdvertisementList.Count <= advertisementIndex)
+            if (drawAdvertisementList.Count <= advertisementIndex)
             {
                 advertisementIndex = 0;
             }

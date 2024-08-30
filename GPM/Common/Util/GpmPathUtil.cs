@@ -23,7 +23,7 @@ namespace Gpm.Common.Util
 
             return builder.ToString();
         }
-        
+
         public static string UrlCombine(params string[] path)
         {
             StringBuilder builder = new StringBuilder();

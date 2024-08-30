@@ -422,7 +422,7 @@ namespace Gpm.Common.ThirdParty.MessagePack
         public static int WriteRaw(ref byte[] bytes, int offset, byte[] rawMessagePackBlock)
         {
             EnsureCapacity(ref bytes, offset, rawMessagePackBlock.Length);
-    
+
             Buffer.BlockCopy(rawMessagePackBlock, 0, bytes, offset, rawMessagePackBlock.Length);
 
             return rawMessagePackBlock.Length;

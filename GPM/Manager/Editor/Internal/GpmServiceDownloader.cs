@@ -21,7 +21,7 @@ namespace Gpm.Manager.Internal
             Action downloadAction = () =>
             {
                 ServiceInfo.Package package = service.GetPackage(service.version);
-                if(package == null)
+                if (package == null)
                 {
                     callback(new ManagerError(ManagerErrorCode.INSTALL,
                                     string.Format(ManagerInfos.GetString(ManagerStrings.ERROR_MESSAGE_DEPENDENCY_SERVICE_INSTALL_FAILED), service.title),
@@ -69,7 +69,7 @@ namespace Gpm.Manager.Internal
             foreach (string serviceName in dependencyServices)
             {
                 bool isExsist = false;
-                foreach(PackageInstallInfo downloadInfo in downloadQueue)
+                foreach (PackageInstallInfo downloadInfo in downloadQueue)
                 {
                     if (downloadInfo.serviceName.Equals(serviceName))
                     {
@@ -116,7 +116,7 @@ namespace Gpm.Manager.Internal
                     isError = true;
                     return;
                 }
-                else if(Common.UnityWebRequestHelper.IsError(request) == true)
+                else if (Common.UnityWebRequestHelper.IsError(request) == true)
                 {
                     errorMessage = ManagerStrings.ERROR_MESSAGE_DOWNLOAD_FAILED;
                     errorSubMessage = string.Format("Service= {0}, Code= {1}, Message= {2}", serviceName, request.responseCode, request.error);
@@ -141,7 +141,7 @@ namespace Gpm.Manager.Internal
                         });
                 }
             });
-            
+
             if (isError == true)
             {
                 callback(new ManagerError(ManagerErrorCode.INSTALL, errorMessage, errorSubMessage));
@@ -168,7 +168,7 @@ namespace Gpm.Manager.Internal
                     }
 
                     ManagerError returnError = null;
-                    yield return RefreshDepedencyInfo(serviceDependencies, (error)=>
+                    yield return RefreshDepedencyInfo(serviceDependencies, (error) =>
                     {
                         returnError = error;
                     });
@@ -260,7 +260,7 @@ namespace Gpm.Manager.Internal
                         {
                             error = new ManagerError(ManagerErrorCode.NETWORK, ManagerStrings.ERROR_MESSAGE_NETWORK, request.error);
                         }
-                            downloadCount--;
+                        downloadCount--;
                     }
                     else if (Common.UnityWebRequestHelper.IsError(request) == true)
                     {
@@ -270,7 +270,7 @@ namespace Gpm.Manager.Internal
                         }
                         downloadCount--;
                     }
-                    else if(Common.UnityWebRequestHelper.IsSuccess(request) == true)
+                    else if (Common.UnityWebRequestHelper.IsSuccess(request) == true)
                     {
                         downloadCount--;
                         downloadedList.Add(downloadInfo);
@@ -282,7 +282,7 @@ namespace Gpm.Manager.Internal
             {
                 yield return null;
             }
-            
+
             callback(error, downloadedList);
         }
 

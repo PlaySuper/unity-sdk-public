@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "displayName": "PlaySuper",
   "description": "",
-  "unity": "2020.3",
+  "unity": "2022.3",
   "author": {
     "name": "PlaySuper",
     "email": "lakshya.satpal@playsuper.club",
     "url": "https://playsuper.club"
   },
-  "dependencies": {}
+  "dependencies": {
+    "com.unity.ugui": "1.0.0",
+    "com.unity.textmeshpro": "1.0.0"
+  }
 }

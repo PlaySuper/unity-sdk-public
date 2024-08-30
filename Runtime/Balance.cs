@@ -27,11 +27,6 @@ namespace PlaySuperUnity
         {
             this.amount = _amount;
         }
-
-        public override string ToString()
-        {
-            return $"id: {id}, name: {name}, url: {url}, amount: {amount}";
-        }
     }
 
     [System.Serializable]

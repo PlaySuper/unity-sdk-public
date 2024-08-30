@@ -145,7 +145,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.Internal
                 next = next.Next;
             }
 
-            NOT_FOUND:
+        NOT_FOUND:
             value = default(TValue);
             return false;
         }

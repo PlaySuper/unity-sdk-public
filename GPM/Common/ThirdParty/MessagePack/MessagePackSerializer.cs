@@ -127,7 +127,7 @@ namespace Gpm.Common.ThirdParty.MessagePack
         {
             return resolver.GetFormatterWithVerify<T>().Serialize(ref bytes, offset, value, resolver);
         }
-        
+
         public static T Deserialize<T>(byte[] bytes)
         {
             return Deserialize<T>(bytes, defaultResolver);

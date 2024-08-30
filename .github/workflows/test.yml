@@ -1,0 +1,40 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  unity-package:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Tests
+        uses: game-ci/unity-test-runner@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: .
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          packageMode: true
+          unityVersion: 2022.3.38f1
+          customParameters: |
+            -e TEST_API_KEY=${{ secrets.TEST_API_KEY }} \
+            -e TEST_COIN_ID=${{ secrets.TEST_COIN_ID }} \
+            -e TEST_TOKEN=${{ secrets.TEST_TOKEN }}
+
+      - name: Store Test Results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: Results
+          path: artifacts

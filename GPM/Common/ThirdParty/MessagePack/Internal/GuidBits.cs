@@ -156,7 +156,7 @@ namespace Gpm.Common.ThirdParty.MessagePack.Internal
                 return;
             }
 
-            ERROR:
+        ERROR:
             throw new ArgumentException("Invalid Guid Pattern.");
         }
 

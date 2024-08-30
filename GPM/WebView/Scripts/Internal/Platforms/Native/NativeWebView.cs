@@ -292,9 +292,9 @@
             };
 
             CheckAutoRotation();
-        #if UNITY_ANDROID
+#if UNITY_ANDROID
             UpdateOrientation(configuration.orientation);
-        #endif
+#endif
 
             return showWebView;
         }
@@ -495,7 +495,7 @@
             isAutorotateToPortrait = Screen.autorotateToPortrait;
             isAutorotateToPortraitUpsideDown = Screen.autorotateToPortraitUpsideDown;
             isAutorotateToLandscapeLeft = Screen.autorotateToLandscapeLeft;
-            isAutorotateToLandscapeRight =Screen.autorotateToLandscapeRight;
+            isAutorotateToLandscapeRight = Screen.autorotateToLandscapeRight;
             defaultOrientation = Screen.orientation;
         }
 
