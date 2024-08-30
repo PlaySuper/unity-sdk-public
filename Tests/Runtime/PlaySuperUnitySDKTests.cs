@@ -85,7 +85,6 @@ namespace PlaySuperUnity.Tests
                     envVariables[pair[0]] = pair[1];
                 }
             }
-            Debug.Log("envVariables: " + envVariables[TEST_API_KEY_ENV] + " " + envVariables[TEST_COIN_ID_ENV] + " " + envVariables[TEST_TOKEN_ENV]);
 
             return envVariables;
         }

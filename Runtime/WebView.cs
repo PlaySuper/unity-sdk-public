@@ -135,7 +135,6 @@ namespace PlaySuperUnity
             {
                 case GpmWebViewCallback.CallbackType.PageStarted:
                     GpmWebView.ExecuteJavaScript("localStorage.getItem('authToken');");
-                    Debug.LogFormat("PageStarted data : {0}, error : {1}", data, error);
                     if (data == "https://store.playsuper.club/")
                     {
                         string js = $"localStorage.setItem('apiKey', '{PlaySuperUnitySDK.Instance.GetApiKey()}')";
@@ -143,7 +142,6 @@ namespace PlaySuperUnity
                     }
                     break;
                 case GpmWebViewCallback.CallbackType.ExecuteJavascript:
-                    Debug.LogFormat("ExecuteJavascript data : {0}, error : {1}", data, error);
                     if (string.IsNullOrEmpty(data) == false && data.Length > 2 && data != "null")
                     {
                         // Extract the token

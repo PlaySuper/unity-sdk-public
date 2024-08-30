@@ -18,7 +18,8 @@ namespace PlaySuperUnity
         private static PlaySuperUnitySDK _instance;
         private static string apiKey;
 
-        private string authToken;
+
+        private string authToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNWY4OTMwNC04YmFkLTQyNjYtYTEzNS0xYTdlNzk4NzY3MWUiLCJwaG9uZSI6Iis5MTk0NjA2MTAxODAiLCJpYXQiOjE3MjQ5MzIyNzgsImV4cCI6MTcyNzUyNDI3OH0.xtNGJMSF4HRN47mgbcj9s70skj3M4OWgzQNgJicXxqc";
 
         private static string baseUrl;
 
@@ -27,6 +28,7 @@ namespace PlaySuperUnity
             if (_instance == null)
             {
                 string env = Environment.GetEnvironmentVariable("PROJECT_ENV") ?? "production";
+                env = "development";
                 if (env == "development")
                 {
                     baseUrl = "https://dev.playsuper.club";
@@ -65,7 +67,6 @@ namespace PlaySuperUnity
 
         public async Task DistributeCoins(string coinId, int amount)
         {
-            Debug.Log(baseUrl);
             if (authToken == null)
             {
                 TransactionsManager.AddTransaction(coinId, amount);
@@ -104,8 +105,18 @@ namespace PlaySuperUnity
             }
         }
 
-        public void OpenStore()
+        public async void OpenStore()
         {
+            // Send Event to MixPanel
+            if (!string.IsNullOrEmpty(authToken))
+            {
+
+                ProfileData profile = await ProfileManager.GetProfileData();
+                if (profile != null && !string.IsNullOrEmpty(profile.id))
+                {
+                    MixPanelManager.SendEvent("store_open", profile.id);
+                }
+            }
             WebView.ShowUrlFullScreen();
         }
 
@@ -256,6 +267,51 @@ namespace PlaySuperUnity
             string json = PlayerPrefs.GetString("transactions");
             TransactionListWrapper wrapper = JsonUtility.FromJson<TransactionListWrapper>(json);
             return wrapper.transactions;
+        }
+
+        internal static string GetBaseUrl()
+        {
+            return baseUrl;
+        }
+    }
+
+    internal class MixPanelManager
+    {
+        private static string MIXPANEL_TOKEN = "c349a0c47b10507f76af7af71addb382";
+        private static string mixPanelUrl = "https://api.mixpanel.com/track";
+        internal static async void SendEvent(string eventName, string playerId)
+        {
+            try
+            {
+                var client = new HttpClient();
+                Guid uuid = Guid.NewGuid();
+                string insertId = uuid.ToString();
+                var mixPanelPayload = $@"[
+                        {{
+                            ""event"": ""{eventName}"",
+                            ""properties"": {{
+                                ""token"": ""{MIXPANEL_TOKEN}"",
+                                ""distinct_id"": ""{playerId}"",
+                                ""time"": {DateTimeOffset.UtcNow.ToUnixTimeSeconds()},
+                                ""$insert_id"": ""{insertId}""
+                            }}
+                        }}
+                    ]";
+                var content = new StringContent(mixPanelPayload, Encoding.UTF8, "application/json");
+                var request = new HttpRequestMessage(HttpMethod.Post, mixPanelUrl) { Content = content };
+                request.Headers.Accept.Clear();
+                request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/plain"));
+                request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+
+                var response = await client.SendAsync(request);
+                response.EnsureSuccessStatusCode();
+                var responseContent = await response.Content.ReadAsStringAsync();
+                Debug.Log("Mixpanel response: " + responseContent);
+            }
+            catch (HttpRequestException e)
+            {
+                Debug.LogError($"Error SendEvent: {e.Message}");
+            }
         }
     }
 }
