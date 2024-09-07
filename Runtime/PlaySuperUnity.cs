@@ -3,6 +3,7 @@ using UnityEngine;
 using Gpm.WebView;
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
@@ -17,18 +18,19 @@ namespace PlaySuperUnity
 
         private static PlaySuperUnitySDK _instance;
         private static string apiKey;
-
-
-        private string authToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNWY4OTMwNC04YmFkLTQyNjYtYTEzNS0xYTdlNzk4NzY3MWUiLCJwaG9uZSI6Iis5MTk0NjA2MTAxODAiLCJpYXQiOjE3MjQ5MzIyNzgsImV4cCI6MTcyNzUyNDI3OH0.xtNGJMSF4HRN47mgbcj9s70skj3M4OWgzQNgJicXxqc";
-
+        private static string authToken;
         private static string baseUrl;
+        private static ProfileData profile;
+
+        // Private constructor to prevent instantiation from outside
+        private PlaySuperUnitySDK() { }
 
         public static void Initialize(string _apiKey)
         {
+            Application.wantsToQuit += OnApplicationWantsToQuit;
             if (_instance == null)
             {
                 string env = Environment.GetEnvironmentVariable("PROJECT_ENV") ?? "production";
-                env = "development";
                 if (env == "development")
                 {
                     baseUrl = "https://dev.playsuper.club";
@@ -49,9 +51,21 @@ namespace PlaySuperUnity
             {
                 Debug.LogError("PlaySuperUnity Instance already initialized");
             }
+            if (PlayerPrefs.HasKey(Constants.lastCloseTimestampName))
+            {
+                if (PlayerPrefs.GetString(Constants.lastCloseDoneName) == "0")
+                {
+                    string timestamp = PlayerPrefs.GetString(Constants.lastCloseTimestampName);
+                    long timestampLong;
+                    if (long.TryParse(timestamp, out timestampLong))
+                    {
+                        MixPanelManager.SendEvent(Constants.MixpanelEvent.GAME_CLOSE, timestampLong);
+                        PlayerPrefs.SetString(Constants.lastCloseDoneName, "1");
+                    }
+                }
+            }
+            MixPanelManager.SendEvent(Constants.MixpanelEvent.GAME_OPEN);
         }
-
-
         public static PlaySuperUnitySDK Instance
         {
             get
@@ -62,6 +76,13 @@ namespace PlaySuperUnity
                 }
                 return _instance;
             }
+        }
+
+        static bool OnApplicationWantsToQuit()
+        {
+            PlayerPrefs.SetString(Constants.lastCloseTimestampName, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
+            PlayerPrefs.SetString(Constants.lastCloseDoneName, "0");
+            return true;
         }
 
 
@@ -107,16 +128,7 @@ namespace PlaySuperUnity
 
         public async void OpenStore()
         {
-            // Send Event to MixPanel
-            if (!string.IsNullOrEmpty(authToken))
-            {
-
-                ProfileData profile = await ProfileManager.GetProfileData();
-                if (profile != null && !string.IsNullOrEmpty(profile.id))
-                {
-                    MixPanelManager.SendEvent("store_open", profile.id);
-                }
-            }
+            MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
             WebView.ShowUrlFullScreen();
         }
 
@@ -124,8 +136,14 @@ namespace PlaySuperUnity
         {
             if (IsLoggedIn()) return;
             authToken = _token;
-            Debug.Log("auth token is set: " + _token);
 
+            // Fetch profile data from token
+            profile = await ProfileManager.GetProfileData();
+
+            // Send Event to Mixpanel
+            await MixPanelManager.SendEvent(Constants.MixpanelEvent.PLAYER_IDENTIFY);
+
+            // Send DistributeCoins requests for transactions stored locally
             if (!TransactionsManager.HasTransactions()) return;
             List<Transaction> transactions = TransactionsManager.GetTransactions();
             Dictionary<string, int> coinMap = new Dictionary<string, int>();
@@ -241,25 +259,29 @@ namespace PlaySuperUnity
             }
         }
 
-        public bool IsLoggedIn()
+        public static bool IsLoggedIn()
         {
-            return !string.IsNullOrEmpty(authToken);
+            return !string.IsNullOrEmpty(authToken) && profile != null;
         }
 
-        internal string GetApiKey()
+        internal static string GetApiKey()
         {
             return apiKey;
         }
 
-        internal string GetAuthToken()
+        internal static string GetAuthToken()
         {
             return authToken;
         }
 
-
-        internal void SetAuthToken(string token)
+        internal static void SetAuthToken(string token)
         {
-            this.authToken = token;
+            authToken = token;
+        }
+
+        internal static ProfileData GetProfileData()
+        {
+            return profile;
         }
 
         internal static List<Transaction> GetLocalTransactions()
@@ -277,36 +299,78 @@ namespace PlaySuperUnity
 
     internal class MixPanelManager
     {
-        private static string MIXPANEL_TOKEN = "c349a0c47b10507f76af7af71addb382";
-        private static string mixPanelUrl = "https://api.mixpanel.com/track";
-        internal static async void SendEvent(string eventName, string playerId)
+        private static string _deviceId;
+        internal static string DeviceId
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(_deviceId)) return _deviceId;
+                if (PlayerPrefs.HasKey(Constants.deviceIdName))
+                {
+                    _deviceId = PlayerPrefs.GetString(Constants.deviceIdName);
+                }
+                if (string.IsNullOrEmpty(_deviceId))
+                {
+                    DeviceId = Guid.NewGuid().ToString();
+                }
+                return _deviceId;
+            }
+            set
+            {
+                _deviceId = value;
+                PlayerPrefs.SetString(Constants.deviceIdName, value);
+            }
+        }
+
+        private static string userId
+        {
+            get
+            {
+                if (PlaySuperUnitySDK.IsLoggedIn())
+                {
+                    return PlaySuperUnitySDK.GetProfileData().id;
+                }
+                else return null;
+            }
+        }
+
+        private static GameData gameData;
+
+        internal static async Task SendEvent(string eventName, long timestamp = 0)
         {
             try
             {
                 var client = new HttpClient();
-                Guid uuid = Guid.NewGuid();
-                string insertId = uuid.ToString();
+                string insertId = Guid.NewGuid().ToString();
+                if (gameData == null)
+                {
+                    gameData = await GameManager.GetGameData();
+                }
                 var mixPanelPayload = $@"[
                         {{
                             ""event"": ""{eventName}"",
                             ""properties"": {{
-                                ""token"": ""{MIXPANEL_TOKEN}"",
-                                ""distinct_id"": ""{playerId}"",
-                                ""time"": {DateTimeOffset.UtcNow.ToUnixTimeSeconds()},
-                                ""$insert_id"": ""{insertId}""
+                                ""token"": ""{Constants.MIXPANEL_TOKEN}"",
+                                ""$device_id"": ""{DeviceId}"",
+                                {(timestamp != 0 ? $@"""time"": {timestamp}," : "")}
+                                ""$insert_id"": ""{insertId}"",
+                                ""gameId"": ""{gameData.id}"",
+                                ""gameName"": ""{gameData.name}"",
+                                ""studioId"": ""{gameData.studioId}"",
+                                ""organizationId"": ""{gameData.studio.organizationId}""
+                                {(!string.IsNullOrEmpty(userId) ? $@", ""$user_id"": ""{userId}""" : "")}
                             }}
                         }}
                     ]";
                 var content = new StringContent(mixPanelPayload, Encoding.UTF8, "application/json");
-                var request = new HttpRequestMessage(HttpMethod.Post, mixPanelUrl) { Content = content };
+                var request = new HttpRequestMessage(HttpMethod.Post, Constants.MIXPANEL_URL) { Content = content };
                 request.Headers.Accept.Clear();
                 request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/plain"));
                 request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-
                 var response = await client.SendAsync(request);
                 response.EnsureSuccessStatusCode();
                 var responseContent = await response.Content.ReadAsStringAsync();
-                Debug.Log("Mixpanel response: " + responseContent);
+                Debug.Log($"Mixpanel event: {eventName}, {responseContent}");
             }
             catch (HttpRequestException e)
             {

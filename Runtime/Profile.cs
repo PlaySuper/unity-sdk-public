@@ -11,9 +11,9 @@ namespace PlaySuperUnity
     {
         internal static async Task<ProfileData> GetProfileData()
         {
-            string token = PlaySuperUnitySDK.Instance.GetAuthToken();
+            string token = PlaySuperUnitySDK.GetAuthToken();
             string baseUrl = PlaySuperUnitySDK.GetBaseUrl();
-            string apiKey = PlaySuperUnitySDK.Instance.GetApiKey();
+            string apiKey = PlaySuperUnitySDK.GetApiKey();
             if (!string.IsNullOrEmpty(token))
             {
                 try
