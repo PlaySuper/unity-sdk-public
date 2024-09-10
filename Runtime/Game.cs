@@ -10,7 +10,7 @@ namespace PlaySuperUnity
     {
         internal async static Task<GameData> GetGameData()
         {
-            string baseUrl = "https://18614325-b26e-42f4-9a5f-f5180684d780.mock.pstmn.io"; // Mock URL 
+            string baseUrl = PlaySuperUnitySDK.GetBaseUrl();
             string apiKey = PlaySuperUnitySDK.GetApiKey();
             if (!string.IsNullOrEmpty(apiKey))
             {
