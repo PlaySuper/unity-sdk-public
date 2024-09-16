@@ -22,14 +22,8 @@ namespace PlaySuperUnity
         private static string baseUrl;
         private static ProfileData profile;
 
-<<<<<<< HEAD
         // Private constructor to prevent instantiation from outside
         private PlaySuperUnitySDK() { }
-=======
-        private string authToken;
-
-        private static string baseUrl;
->>>>>>> 1283621fc2d444333132f603b4735bd3a94d74ed
 
         public static void Initialize(string _apiKey)
         {
