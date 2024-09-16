@@ -23,7 +23,7 @@ namespace PlaySuperUnity
     {
         public int amount;
         public CoinBalance(string _id, string _name, string _url, int _amount)
-        : base(_id, _name, _url)  // Call the base class constructor
+        : base(_id, _name, _url)
         {
             this.amount = _amount;
         }

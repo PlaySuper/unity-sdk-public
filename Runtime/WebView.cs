@@ -29,7 +29,6 @@ namespace PlaySuperUnity
             contentMode = GpmWebViewContentMode.MOBILE
 #endif
                 },
-                // See the end of the code example
                 OnCallback,
                 new List<string>()
                 {
@@ -37,7 +36,6 @@ namespace PlaySuperUnity
                 });
         }
 
-        // Popup default
         public static void ShowUrlPopupDefault()
         {
             GpmWebView.ShowUrl(
@@ -56,7 +54,6 @@ namespace PlaySuperUnity
             isMaskViewVisible = true,
 #endif
                 },
-                // See the end of the code example
                 OnCallback,
                 new List<string>()
                 {
