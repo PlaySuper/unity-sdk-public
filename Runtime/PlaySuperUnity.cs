@@ -362,7 +362,6 @@ namespace PlaySuperUnity
                 var content = new StringContent(mixPanelPayload, Encoding.UTF8, "application/json");
                 var request = new HttpRequestMessage(HttpMethod.Post, Constants.MIXPANEL_URL) { Content = content };
                 request.Headers.Accept.Clear();
-                // request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/plain"));
                 request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 var response = await client.SendAsync(request);
                 response.EnsureSuccessStatusCode();
