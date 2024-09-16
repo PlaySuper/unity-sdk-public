@@ -346,11 +346,9 @@ namespace PlaySuperUnity
                 {
                     gameData = await GameManager.GetGameData();
                 }
-                var mixPanelPayload = $@"[
-                        {{
-                            ""event"": ""{eventName}"",
+                var mixPanelPayload = $@"{{
+                            ""event_name"": ""{eventName}"",
                             ""properties"": {{
-                                ""token"": ""{Constants.MIXPANEL_TOKEN}"",
                                 ""$device_id"": ""{DeviceId}"",
                                 {(timestamp != 0 ? $@"""time"": {timestamp}," : "")}
                                 ""$insert_id"": ""{insertId}"",
@@ -360,12 +358,11 @@ namespace PlaySuperUnity
                                 ""organizationId"": ""{gameData.studio.organizationId}""
                                 {(!string.IsNullOrEmpty(userId) ? $@", ""$user_id"": ""{userId}""" : "")}
                             }}
-                        }}
-                    ]";
+                        }}";
                 var content = new StringContent(mixPanelPayload, Encoding.UTF8, "application/json");
                 var request = new HttpRequestMessage(HttpMethod.Post, Constants.MIXPANEL_URL) { Content = content };
                 request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/plain"));
+                // request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/plain"));
                 request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 var response = await client.SendAsync(request);
                 response.EnsureSuccessStatusCode();
@@ -374,6 +371,7 @@ namespace PlaySuperUnity
             }
             catch (HttpRequestException e)
             {
+
                 Debug.LogError($"Error SendEvent: {e.Message}");
             }
         }

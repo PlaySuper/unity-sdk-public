@@ -11,8 +11,7 @@ namespace PlaySuperUnity
             public const string PLAYER_IDENTIFY = "ps_sdk.player_identified";
         }
 
-        internal const string MIXPANEL_TOKEN = "c349a0c47b10507f76af7af71addb382";
-        internal const string MIXPANEL_URL = "https://api.mixpanel.com/track";
+        internal const string MIXPANEL_URL = "https://7ecybbalvlg4pem67c4amx464i0fhpbx.lambda-url.ap-south-1.on.aws/sdk-event";
 
         internal const string deviceIdName = "device_id";
 
