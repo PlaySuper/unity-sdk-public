@@ -347,18 +347,19 @@ namespace PlaySuperUnity
                     gameData = await GameManager.GetGameData();
                 }
                 var mixPanelPayload = $@"{{
-                            ""event_name"": ""{eventName}"",
-                            ""properties"": {{
-                                ""$device_id"": ""{DeviceId}"",
-                                {(timestamp != 0 ? $@"""time"": {timestamp}," : "")}
-                                ""$insert_id"": ""{insertId}"",
-                                ""gameId"": ""{gameData.id}"",
-                                ""gameName"": ""{gameData.name}"",
-                                ""studioId"": ""{gameData.studioId}"",
-                                ""organizationId"": ""{gameData.studio.organizationId}""
-                                {(!string.IsNullOrEmpty(userId) ? $@", ""$user_id"": ""{userId}""" : "")}
-                            }}
-                        }}";
+                    ""event_name"": ""{eventName}"",
+                    ""properties"": {{
+                        ""$device_id"": ""{DeviceId}"",
+                        {(timestamp != 0 ? $@"""time"": {timestamp}," : "")}
+                        ""$insert_id"": ""{insertId}"",
+                        ""gameId"": ""{gameData.id}"",
+                        ""gameName"": ""{gameData.name}"",
+                        ""studioId"": ""{gameData.studioId}"",
+                        {(!string.IsNullOrEmpty(userId) ? $@", ""$user_id"": ""{userId}""" : "")}
+                        ""studioOrganizationId"": ""{gameData.studio.organizationId}"",
+                        ""studioName"": ""{gameData.studio.organization.name}""
+                    }}
+                }}";
                 var content = new StringContent(mixPanelPayload, Encoding.UTF8, "application/json");
                 var request = new HttpRequestMessage(HttpMethod.Post, Constants.MIXPANEL_URL) { Content = content };
                 request.Headers.Accept.Clear();
@@ -370,7 +371,6 @@ namespace PlaySuperUnity
             }
             catch (HttpRequestException e)
             {
-
                 Debug.LogError($"Error SendEvent: {e.Message}");
             }
         }

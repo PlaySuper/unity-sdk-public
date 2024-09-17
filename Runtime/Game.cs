@@ -45,12 +45,18 @@ namespace PlaySuperUnity
         public string foundingYear;
         public string primaryGenre;
     }
+    [System.Serializable]
+    internal class Organization
+    {
+        public string id, name, type, profilePicture, companyUrl, createdAt, updatedAt, handle;
+    }
 
     [System.Serializable]
     internal class Studio
     {
         public string id, organizationId, createdAt, updatedAt;
         public StudioDetails studioDetails;
+        public Organization organization;
     }
 
     [System.Serializable]
