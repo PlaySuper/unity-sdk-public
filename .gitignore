@@ -1,2 +1,5 @@
 obj
 bin
+bin.meta
+obj.meta
+Tests/run.sh
