@@ -54,7 +54,7 @@ namespace PlaySuperUnity.Tests
         [UnityTest]
         public IEnumerator DistributeCoins_ShouldStoreTransaction_WhenAuthTokenIsNull()
         {
-            ps.OnTokenReceive(null);
+            PlaySuperUnitySDK.SetAuthToken(null);
             yield return ps.DistributeCoins(testCoinId, 10);
 
             string storedTransaction = PlayerPrefs.GetString("transactions");
@@ -64,7 +64,7 @@ namespace PlaySuperUnity.Tests
         [UnityTest]
         public IEnumerator DistributeCoins_ShouldSendRequest_AndReceiveSuccess()
         {
-            ps.OnTokenReceive(testToken);
+            PlaySuperUnitySDK.SetAuthToken(testToken);
 
             yield return ps.DistributeCoins(testCoinId, 10);
             yield return new WaitForSeconds(2);

@@ -87,7 +87,6 @@ namespace PlaySuperUnity
 
         public async Task DistributeCoins(string coinId, int amount)
         {
-            Debug.Log(baseUrl);
             if (authToken == null)
             {
                 TransactionsManager.AddTransaction(coinId, amount);
