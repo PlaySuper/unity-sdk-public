@@ -18,13 +18,7 @@ namespace PlaySuperUnity
 
         private static PlaySuperUnitySDK _instance;
         private static string apiKey;
-<<<<<<< HEAD
-
-        private string authToken;
-
-=======
         private static string authToken;
->>>>>>> 94e4968b94462e41a9284d222c4fff2edd72bea3
         private static string baseUrl;
         private static ProfileData profile;
 
@@ -279,12 +273,7 @@ namespace PlaySuperUnity
             return authToken;
         }
 
-<<<<<<< HEAD
-
-        internal void SetAuthToken(string token)
-=======
         internal static void SetAuthToken(string token)
->>>>>>> 94e4968b94462e41a9284d222c4fff2edd72bea3
         {
             authToken = token;
         }
@@ -301,8 +290,6 @@ namespace PlaySuperUnity
             return wrapper.transactions;
         }
 
-<<<<<<< HEAD
-=======
         internal static string GetBaseUrl()
         {
             return baseUrl;
@@ -386,6 +373,5 @@ namespace PlaySuperUnity
                 Debug.LogError($"Error SendEvent: {e.Message}");
             }
         }
->>>>>>> 94e4968b94462e41a9284d222c4fff2edd72bea3
     }
 }

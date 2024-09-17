@@ -3,3 +3,4 @@ bin
 bin.meta
 obj.meta
 Tests/run.sh
+Tests/run.sh.meta
