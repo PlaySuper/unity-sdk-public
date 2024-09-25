@@ -59,7 +59,7 @@ namespace PlaySuperUnity
     }
 
     [System.Serializable]
-    internal class Transaction
+    public class Transaction
     {
         public string coinId;
         public int amount;

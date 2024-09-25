@@ -47,10 +47,6 @@ namespace PlaySuperUnity
 
                 Debug.Log("PlaySuperUnity initialized with API Key: " + apiKey);
             }
-            else
-            {
-                Debug.LogError("PlaySuperUnity Instance already initialized");
-            }
             if (PlayerPrefs.HasKey(Constants.lastCloseTimestampName))
             {
                 if (PlayerPrefs.GetString(Constants.lastCloseDoneName) == "0")
@@ -121,7 +117,7 @@ namespace PlaySuperUnity
             }
             else
             {
-                Debug.LogError($"Error from DistributeCoins: {response}");
+                Debug.LogError("Error from DistributeCoins: " + response);
             }
         }
 
@@ -235,6 +231,7 @@ namespace PlaySuperUnity
                             balances.Add(cb);
                         }
                     }
+
                     // Add balance from local transactions
                     List<Transaction> transactionList = GetLocalTransactions();
                     foreach (Transaction t in transactionList)
@@ -243,7 +240,7 @@ namespace PlaySuperUnity
                         {
                             if (t.coinId == balances[i].id)
                             {
-                                balances[i].id += t.amount;
+                                balances[i].amount += t.amount;
                             }
                         }
                     }
