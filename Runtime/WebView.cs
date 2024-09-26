@@ -20,7 +20,7 @@ namespace PlaySuperUnity
                     backgroundColor = "#FFFFFF",
                     isNavigationBarVisible = true,
                     navigationBarColor = "#4B96E6",
-                    title = "PlaySuper Store",
+                    title = "Offer Zone",
                     isBackButtonVisible = true,
                     isForwardButtonVisible = true,
                     isCloseButtonVisible = true,
