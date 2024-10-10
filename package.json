@@ -11,6 +11,6 @@
   },
   "dependencies": {
     "com.unity.ugui": "1.0.0",
-    "com.unity.textmeshpro": "1.0.0"
+    "com.unity.textmeshpro": "3.0.6"
   }
 }
