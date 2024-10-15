@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using Gpm.WebView;
+using Gpm.Communicator;
 
 using System;
 using System.Collections;
@@ -27,6 +28,8 @@ namespace PlaySuperUnity
 
         public static void Initialize(string _apiKey)
         {
+            string gaid = GetAndroidAdvertiserId();
+            Debug.Log("gaid: " + gaid);
             Application.wantsToQuit += OnApplicationWantsToQuit;
             if (_instance == null)
             {
@@ -291,7 +294,26 @@ namespace PlaySuperUnity
         {
             return baseUrl;
         }
+        public static string GetAndroidAdvertiserId()
+        {
+            string advertisingID = "";
+            try
+            {
+                AndroidJavaClass up = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+                AndroidJavaObject currentActivity = up.GetStatic<AndroidJavaObject>("currentActivity");
+                AndroidJavaClass client = new AndroidJavaClass("com.google.android.gms.ads.identifier.AdvertisingIdClient");
+                AndroidJavaObject adInfo = client.CallStatic<AndroidJavaObject>("getAdvertisingIdInfo", currentActivity);
+
+                advertisingID = adInfo.Call<string>("getId").ToString();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Error GetAndroidAdvertiserId: {e.Message}");
+            }
+            return advertisingID;
+        }
     }
+
 
     internal class MixPanelManager
     {
