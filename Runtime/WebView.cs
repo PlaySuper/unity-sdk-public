@@ -61,6 +61,39 @@ namespace PlaySuperUnity
                 });
         }
 
+        public static void ShowUrlPopupPositionSize()
+        {
+            Rect safeArea = Screen.safeArea;
+            GpmWebView.ShowUrl(
+                "https://store.playsuper.club/",
+                new GpmWebViewRequest.Configuration()
+                {
+                    style = GpmWebViewStyle.POPUP,
+                    orientation = GpmOrientation.UNSPECIFIED,
+                    isClearCookie = true,
+                    isClearCache = true,
+                    isNavigationBarVisible = true,
+                    isCloseButtonVisible = true,
+                    position = new GpmWebViewRequest.Position
+                    {
+                        hasValue = true,
+                        x = (int)safeArea.xMin,
+                        y = (int)safeArea.yMin
+                    },
+                    size = new GpmWebViewRequest.Size
+                    {
+                        hasValue = true,
+                        width = (int)safeArea.width,
+                        height = (int)safeArea.height
+                    },
+                    supportMultipleWindows = true,
+#if UNITY_IOS
+            contentMode = GpmWebViewContentMode.MOBILE,
+            isMaskViewVisible = true,
+#endif
+                }, OnCallback, null);
+        }
+
         private static async void OnCallback(
             GpmWebViewCallback.CallbackType callbackType,
             string data,
