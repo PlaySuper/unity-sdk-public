@@ -69,7 +69,7 @@ namespace PlaySuperUnity
                 new GpmWebViewRequest.Configuration()
                 {
                     style = GpmWebViewStyle.POPUP,
-                    orientation = GpmOrientation.UNSPECIFIED,
+                    orientation = getWebOrientation(),
                     isClearCookie = true,
                     isClearCache = true,
                     isNavigationBarVisible = true,
@@ -78,7 +78,7 @@ namespace PlaySuperUnity
                     {
                         hasValue = true,
                         x = (int)safeArea.xMin,
-                        y = (int)safeArea.yMin
+                        y = (int)(Screen.height - safeArea.height)
                     },
                     size = new GpmWebViewRequest.Size
                     {
@@ -124,6 +124,30 @@ namespace PlaySuperUnity
                     }
                     break;
             }
+        }
+
+        private static int getWebOrientation()
+        {
+            int or;
+            switch (Screen.orientation)
+            {
+                case ScreenOrientation.Portrait:
+                    or = GpmOrientation.PORTRAIT;
+                    break;
+                case ScreenOrientation.PortraitUpsideDown:
+                    or = GpmOrientation.PORTRAIT_REVERSE;
+                    break;
+                case ScreenOrientation.LandscapeLeft:
+                    or = GpmOrientation.LANDSCAPE_LEFT;
+                    break;
+                case ScreenOrientation.LandscapeRight:
+                    or = GpmOrientation.LANDSCAPE_REVERSE;
+                    break;
+                default:
+                    or = GpmOrientation.UNSPECIFIED;
+                    break;
+            }
+            return or;
         }
     }
 }
