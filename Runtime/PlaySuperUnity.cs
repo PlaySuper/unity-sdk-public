@@ -124,7 +124,7 @@ namespace PlaySuperUnity
         public async void OpenStore()
         {
             MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
-            WebView.ShowUrlFullScreen();
+            WebView.ShowUrlPopupPositionSize();
         }
 
         internal async void OnTokenReceive(string _token)
