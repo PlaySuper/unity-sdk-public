@@ -20,7 +20,7 @@ namespace PlaySuperUnity
                     backgroundColor = "#FFFFFF",
                     isNavigationBarVisible = true,
                     navigationBarColor = "#4B96E6",
-                    title = "PlaySuper Store",
+                    title = "Offer Zone",
                     isBackButtonVisible = true,
                     isForwardButtonVisible = true,
                     isCloseButtonVisible = true,
@@ -59,6 +59,39 @@ namespace PlaySuperUnity
                 {
             "http://"
                 });
+        }
+
+        public static void ShowUrlPopupPositionSize()
+        {
+            Rect safeArea = Screen.safeArea;
+            GpmWebView.ShowUrl(
+                "https://store.playsuper.club/",
+                new GpmWebViewRequest.Configuration()
+                {
+                    style = GpmWebViewStyle.POPUP,
+                    orientation = GpmOrientation.UNSPECIFIED,
+                    isClearCookie = true,
+                    isClearCache = true,
+                    isNavigationBarVisible = true,
+                    isCloseButtonVisible = true,
+                    position = new GpmWebViewRequest.Position
+                    {
+                        hasValue = true,
+                        x = (int)safeArea.xMin,
+                        y = (int)safeArea.yMin
+                    },
+                    size = new GpmWebViewRequest.Size
+                    {
+                        hasValue = true,
+                        width = (int)safeArea.width,
+                        height = (int)safeArea.height
+                    },
+                    supportMultipleWindows = true,
+#if UNITY_IOS
+            contentMode = GpmWebViewContentMode.MOBILE,
+            isMaskViewVisible = true,
+#endif
+                }, OnCallback, null);
         }
 
         private static async void OnCallback(
