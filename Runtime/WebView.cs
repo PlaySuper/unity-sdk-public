@@ -20,7 +20,7 @@ namespace PlaySuperUnity
                     backgroundColor = "#FFFFFF",
                     isNavigationBarVisible = true,
                     navigationBarColor = "#4B96E6",
-                    title = "PlaySuper Store",
+                    title = "Offer Zone",
                     isBackButtonVisible = true,
                     isForwardButtonVisible = true,
                     isCloseButtonVisible = true,
@@ -61,6 +61,39 @@ namespace PlaySuperUnity
                 });
         }
 
+        public static void ShowUrlPopupPositionSize()
+        {
+            Rect safeArea = Screen.safeArea;
+            GpmWebView.ShowUrl(
+                "https://store.playsuper.club/",
+                new GpmWebViewRequest.Configuration()
+                {
+                    style = GpmWebViewStyle.POPUP,
+                    orientation = getWebOrientation(),
+                    isClearCookie = true,
+                    isClearCache = true,
+                    isNavigationBarVisible = true,
+                    isCloseButtonVisible = true,
+                    position = new GpmWebViewRequest.Position
+                    {
+                        hasValue = true,
+                        x = (int)safeArea.xMin,
+                        y = (int)(Screen.height - safeArea.height)
+                    },
+                    size = new GpmWebViewRequest.Size
+                    {
+                        hasValue = true,
+                        width = (int)safeArea.width,
+                        height = (int)safeArea.height
+                    },
+                    supportMultipleWindows = true,
+#if UNITY_IOS
+            contentMode = GpmWebViewContentMode.MOBILE,
+            isMaskViewVisible = true,
+#endif
+                }, OnCallback, null);
+        }
+
         private static async void OnCallback(
             GpmWebViewCallback.CallbackType callbackType,
             string data,
@@ -91,6 +124,30 @@ namespace PlaySuperUnity
                     }
                     break;
             }
+        }
+
+        private static int getWebOrientation()
+        {
+            int or;
+            switch (Screen.orientation)
+            {
+                case ScreenOrientation.Portrait:
+                    or = GpmOrientation.PORTRAIT;
+                    break;
+                case ScreenOrientation.PortraitUpsideDown:
+                    or = GpmOrientation.PORTRAIT_REVERSE;
+                    break;
+                case ScreenOrientation.LandscapeLeft:
+                    or = GpmOrientation.LANDSCAPE_LEFT;
+                    break;
+                case ScreenOrientation.LandscapeRight:
+                    or = GpmOrientation.LANDSCAPE_REVERSE;
+                    break;
+                default:
+                    or = GpmOrientation.UNSPECIFIED;
+                    break;
+            }
+            return or;
         }
     }
 }
