@@ -28,7 +28,6 @@ namespace PlaySuperUnity
 
         public static void Initialize(string _apiKey)
         {
-            string gaid = GetAndroidAdvertiserId();
             Application.wantsToQuit += OnApplicationWantsToQuit;
             if (_instance == null)
             {
