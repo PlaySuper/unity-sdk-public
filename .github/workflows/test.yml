@@ -33,7 +33,7 @@ jobs:
             -e TEST_TOKEN=${{ secrets.TEST_TOKEN }}
 
       - name: Store Test Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Results

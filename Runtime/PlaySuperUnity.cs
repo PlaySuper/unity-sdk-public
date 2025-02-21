@@ -26,13 +26,13 @@ namespace PlaySuperUnity
         // Private constructor to prevent instantiation from outside
         private PlaySuperUnitySDK() { }
 
-        public static void Initialize(string _apiKey)
+        public static void Initialize(string _apiKey, bool _isDev = false)
         {
             Application.wantsToQuit += OnApplicationWantsToQuit;
             if (_instance == null)
             {
                 string env = Environment.GetEnvironmentVariable("PROJECT_ENV") ?? "production";
-                if (env == "development")
+                if (env == "development" || _isDev)
                 {
                     baseUrl = "https://dev.playsuper.club";
                 }
