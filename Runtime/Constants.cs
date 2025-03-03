@@ -17,5 +17,12 @@ namespace PlaySuperUnity
 
         internal const string lastCloseTimestampName = "lastCloseTimestamp";
         internal const string lastCloseDoneName = "lastCloseDone";
+
+        internal const string devStoreUrl = "https://dev-store.playsuper.club/";
+        internal const string prodStoreUrl = "https://store.playsuper.club/";
+
+        internal const string devApiUrl = "https://dev.playsuper.club/";
+        internal const string prodApiUrl = "https://api.playsuper.club/";
+
     }
 }

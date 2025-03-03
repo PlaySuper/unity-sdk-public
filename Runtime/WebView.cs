@@ -61,11 +61,11 @@ namespace PlaySuperUnity
                 });
         }
 
-        public static void ShowUrlPopupPositionSize()
+        public static void ShowUrlPopupPositionSize(bool isDev = false)
         {
             Rect safeArea = Screen.safeArea;
             GpmWebView.ShowUrl(
-                "https://store.playsuper.club/",
+                isDev ? Constants.devStoreUrl : Constants.prodStoreUrl,
                 new GpmWebViewRequest.Configuration()
                 {
                     style = GpmWebViewStyle.POPUP,
@@ -99,20 +99,34 @@ namespace PlaySuperUnity
             string data,
             GpmWebViewError error)
         {
+            Debug.Log($"WebView callback: {callbackType}, URL: {data}");
+
             switch (callbackType)
             {
                 case GpmWebViewCallback.CallbackType.Close:
                     await MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_CLOSE);
                     break;
+
+                case GpmWebViewCallback.CallbackType.Open:
+                    await MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
+                    break;
+
                 case GpmWebViewCallback.CallbackType.PageStarted:
                     GpmWebView.ExecuteJavaScript("localStorage.getItem('authToken');");
-                    if (data == "https://store.playsuper.club/")
+
+                    Debug.Log($"Page started: {data}");
+
+                    // More reliable URL check
+                    if (data.Contains("store.playsuper.club"))
                     {
                         string js = $"localStorage.setItem('apiKey', '{PlaySuperUnitySDK.GetApiKey()}')";
                         GpmWebView.ExecuteJavaScript(js);
+                        Debug.Log("Store URL detected - Injecting credentials");
+                        InjectCredentials();
                     }
                     break;
                 case GpmWebViewCallback.CallbackType.ExecuteJavascript:
+                    Debug.Log("ExecuteJavascript: " + data);
                     if (string.IsNullOrEmpty(data) == false && data.Length > 2 && data != "null")
                     {
                         // Extract the token
@@ -120,11 +134,44 @@ namespace PlaySuperUnity
                         int endIndex = data.IndexOf("\"", startIndex);
                         string token = data.Substring(startIndex, endIndex - startIndex - 1);
 
-                        PlaySuperUnitySDK.Instance.OnTokenReceive(token);
+                        Debug.Log("Token: " + token);
+                        if (!PlaySuperUnitySDK.IsLoggedIn()) PlaySuperUnitySDK.Instance.OnTokenReceive(token);
                     }
                     break;
             }
         }
+
+        internal static void InjectCredentials()
+        {
+
+            // Get credentials from SDK
+            string apiKey = PlaySuperUnitySDK.GetApiKey();
+            string token = PlaySuperUnitySDK.GetAuthToken();
+
+            // Log what we're injecting
+            Debug.Log($"Injecting - API Key: {apiKey}, Token present: {!string.IsNullOrEmpty(token)}");
+
+            // Set API key
+            string jsApiKey = $"localStorage.setItem('apiKey', '{apiKey}'); console.log('API key set: {apiKey}');";
+            GpmWebView.ExecuteJavaScript(jsApiKey);
+
+            // Set auth token if available
+            if (!string.IsNullOrEmpty(token))
+            {
+                // IMPORTANT: Format token properly for JavaScript
+                string safeToken = token.Replace("'", "\\'").Replace("\n", "\\n");
+
+                string jsToken = $"localStorage.setItem('authToken', '{safeToken}'); console.log('Auth token set (first 5 chars): ' + localStorage.getItem('authToken').substring(0,5));";
+                GpmWebView.ExecuteJavaScript(jsToken);
+
+                // Verify injection
+                string jsVerify = "console.log('Auth token verification: ' + (localStorage.getItem('authToken') ? 'Present' : 'Missing'));";
+                GpmWebView.ExecuteJavaScript(jsVerify);
+            }
+
+        }
+
+
 
         private static int getWebOrientation()
         {

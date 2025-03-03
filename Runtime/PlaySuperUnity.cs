@@ -22,6 +22,7 @@ namespace PlaySuperUnity
         private static string authToken;
         private static string baseUrl;
         private static ProfileData profile;
+        private static bool isDev;
 
         // Private constructor to prevent instantiation from outside
         private PlaySuperUnitySDK() { }
@@ -32,13 +33,14 @@ namespace PlaySuperUnity
             if (_instance == null)
             {
                 string env = Environment.GetEnvironmentVariable("PROJECT_ENV") ?? "production";
+                isDev = _isDev;
                 if (env == "development" || _isDev)
                 {
-                    baseUrl = "https://dev.playsuper.club";
+                    baseUrl = Constants.devApiUrl;
                 }
                 else
                 {
-                    baseUrl = "https://api.playsuper.club";
+                    baseUrl = Constants.prodApiUrl;
                 }
                 GameObject sdkObject = new GameObject("PlaySuper");
                 _instance = sdkObject.AddComponent<PlaySuperUnitySDK>();
@@ -122,11 +124,57 @@ namespace PlaySuperUnity
             }
         }
 
+
         public async void OpenStore()
         {
-            MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
-            WebView.ShowUrlPopupPositionSize();
+            OpenStore(null);
         }
+
+        public async void OpenStore(string token)
+        {
+
+            MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
+            Debug.Log("OpenStore: with token " + token);
+            if (!string.IsNullOrEmpty(token))
+            {
+                try
+                {
+                    authToken = token;
+                    if (!ValidateToken(token))
+                    {
+                        throw new InvalidOperationException("Invalid token");
+                    }
+                    OnTokenReceive(token);
+                    if (profile == null)
+                    {
+                        profile = await ProfileManager.GetProfileData();
+                        // If we get here, token worked correctly
+                        Debug.Log("Token valid, profile retrieved successfully");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Token error: {ex.Message}");
+                    authToken = null;
+
+                    // Throw a more specific exception with context
+                    throw new InvalidOperationException(
+                        $"Failed to validate token and retrieve profile data: {ex.Message}. Please provide a valid token or initialize SDK properly.",
+                        ex
+                    );
+                }
+            }
+            WebView.ShowUrlPopupPositionSize(isDev);
+        }
+
+
+        public static bool ValidateToken(string token)
+        {
+            // Delegate to TokenUtils
+            return TokenUtils.ValidateToken(token);
+        }
+
+
 
         internal async void OnTokenReceive(string _token)
         {
