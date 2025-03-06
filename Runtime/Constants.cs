@@ -21,8 +21,8 @@ namespace PlaySuperUnity
         internal const string devStoreUrl = "https://dev-store.playsuper.club/";
         internal const string prodStoreUrl = "https://store.playsuper.club/";
 
-        internal const string devApiUrl = "https://dev.playsuper.club/";
-        internal const string prodApiUrl = "https://api.playsuper.club/";
+        internal const string devApiUrl = "https://dev.playsuper.club";
+        internal const string prodApiUrl = "https://api.playsuper.club";
 
     }
 }

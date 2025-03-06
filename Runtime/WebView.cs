@@ -2,6 +2,8 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using Gpm.WebView;
+using System;
+using System.Threading.Tasks;
 
 namespace PlaySuperUnity
 {
@@ -104,11 +106,33 @@ namespace PlaySuperUnity
             switch (callbackType)
             {
                 case GpmWebViewCallback.CallbackType.Close:
-                    await MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_CLOSE);
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_CLOSE, DateTime.Now.Ticks);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogError($"Error in background MixPanel event: {ex.Message}");
+                        }
+                    });
                     break;
 
                 case GpmWebViewCallback.CallbackType.Open:
-                    await MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
+                    // Also move this to background thread for consistency
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN, DateTime.Now.Ticks);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogError($"Error in background MixPanel event: {ex.Message}");
+                        }
+                    });
+
                     break;
 
                 case GpmWebViewCallback.CallbackType.PageStarted:
@@ -129,13 +153,25 @@ namespace PlaySuperUnity
                     Debug.Log("ExecuteJavascript: " + data);
                     if (string.IsNullOrEmpty(data) == false && data.Length > 2 && data != "null")
                     {
-                        // Extract the token
-                        int startIndex = 14;
-                        int endIndex = data.IndexOf("\"", startIndex);
-                        string token = data.Substring(startIndex, endIndex - startIndex - 1);
+                        try
+                        {
+                            // Extract the token
+                            int startIndex = 14;
+                            int endIndex = data.IndexOf("\"", startIndex);
+                            string token = data.Substring(startIndex, endIndex - startIndex - 1);
 
-                        Debug.Log("Token: " + token);
-                        if (!PlaySuperUnitySDK.IsLoggedIn()) PlaySuperUnitySDK.Instance.OnTokenReceive(token);
+                            Debug.Log("Token received");  // Don't log the actual token
+
+                            if (!PlaySuperUnitySDK.IsLoggedIn())
+                            {
+                                // Handle token on main thread since it affects UI state
+                                PlaySuperUnitySDK.Instance.OnTokenReceive(token);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogError($"Error processing token: {ex.Message}");
+                        }
                     }
                     break;
             }

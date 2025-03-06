@@ -419,9 +419,9 @@ namespace PlaySuperUnity
                         ""gameId"": ""{gameData.id}"",
                         ""gameName"": ""{gameData.name}"",
                         ""studioId"": ""{gameData.studioId}"",
-                        {(!string.IsNullOrEmpty(userId) ? $@", ""$user_id"": ""{userId}""" : "")}
                         ""studioOrganizationId"": ""{gameData.studio.organizationId}"",
                         ""studioName"": ""{gameData.studio.organization.name}""
+                        {(!string.IsNullOrEmpty(userId) ? $@", ""$user_id"": ""{userId}""" : "")}
                     }}
                 }}";
                 var content = new StringContent(mixPanelPayload, Encoding.UTF8, "application/json");
