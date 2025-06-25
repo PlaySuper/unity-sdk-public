@@ -11,7 +11,11 @@ namespace PlaySuperUnity
             public const string PLAYER_IDENTIFY = "ps_sdk.player_identified";
         }
 
-        internal const string MIXPANEL_URL = "https://7ecybbalvlg4pem67c4amx464i0fhpbx.lambda-url.ap-south-1.on.aws/sdk-event";
+        // TODO: Add kafka double write for mixpanel events
+        internal const string MIXPANEL_URL =
+            "https://7ecybbalvlg4pem67c4amx464i0fhpbx.lambda-url.ap-south-1.on.aws/sdk-event";
+        internal const string MIXPANEL_URL_BATCH =
+            "https://7ecybbalvlg4pem67c4amx464i0fhpbx.lambda-url.ap-south-1.on.aws/sdk-batch";
 
         internal const string deviceIdName = "device_id";
 
@@ -24,5 +28,10 @@ namespace PlaySuperUnity
         internal const string devApiUrl = "https://dev.playsuper.club";
         internal const string prodApiUrl = "https://api.playsuper.club";
 
+        // Mixpanel Event Queue
+        internal const float PROCESS_INTERVAL = 30f;
+        internal const int MAX_QUEUE_SIZE = 1000;
+        internal const int BATCH_SIZE = 20;
+        internal const int MAX_EVENT_AGE_DAYS = 7;
     }
 }

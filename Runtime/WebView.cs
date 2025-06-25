@@ -1,9 +1,9 @@
-using UnityEngine;
+using System;
 using System.Collections;
 using System.Collections.Generic;
-using Gpm.WebView;
-using System;
 using System.Threading.Tasks;
+using Gpm.WebView;
+using UnityEngine;
 
 namespace PlaySuperUnity
 {
@@ -28,14 +28,12 @@ namespace PlaySuperUnity
                     isCloseButtonVisible = true,
                     supportMultipleWindows = true,
 #if UNITY_IOS
-            contentMode = GpmWebViewContentMode.MOBILE
+                    contentMode = GpmWebViewContentMode.MOBILE
 #endif
                 },
                 OnCallback,
-                new List<string>()
-                {
-            "USER_CUSTOM_SCHEME"
-                });
+                new List<string>() { "USER_CUSTOM_SCHEME" }
+            );
         }
 
         public static void ShowUrlPopupDefault()
@@ -52,15 +50,13 @@ namespace PlaySuperUnity
                     isCloseButtonVisible = true,
                     supportMultipleWindows = true,
 #if UNITY_IOS
-            contentMode = GpmWebViewContentMode.MOBILE,
-            isMaskViewVisible = true,
+                    contentMode = GpmWebViewContentMode.MOBILE,
+                    isMaskViewVisible = true,
 #endif
                 },
                 OnCallback,
-                new List<string>()
-                {
-            "http://"
-                });
+                new List<string>() { "http://" }
+            );
         }
 
         public static void ShowUrlPopupPositionSize(bool isDev = false)
@@ -80,26 +76,30 @@ namespace PlaySuperUnity
                     {
                         hasValue = true,
                         x = (int)safeArea.xMin,
-                        y = (int)(Screen.height - safeArea.height)
+                        y = (int)(Screen.height - safeArea.height),
                     },
                     size = new GpmWebViewRequest.Size
                     {
                         hasValue = true,
                         width = (int)safeArea.width,
-                        height = (int)safeArea.height
+                        height = (int)safeArea.height,
                     },
                     supportMultipleWindows = true,
 #if UNITY_IOS
-            contentMode = GpmWebViewContentMode.MOBILE,
-            isMaskViewVisible = true,
+                    contentMode = GpmWebViewContentMode.MOBILE,
+                    isMaskViewVisible = true,
 #endif
-                }, OnCallback, null);
+                },
+                OnCallback,
+                null
+            );
         }
 
         private static async void OnCallback(
             GpmWebViewCallback.CallbackType callbackType,
             string data,
-            GpmWebViewError error)
+            GpmWebViewError error
+        )
         {
             Debug.Log($"WebView callback: {callbackType}, URL: {data}");
 
@@ -110,7 +110,12 @@ namespace PlaySuperUnity
                     {
                         try
                         {
-                            await MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_CLOSE, DateTime.Now.Ticks);
+                            // Timestamp unix timestamp
+                            long unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                            await MixPanelManager.SendEvent(
+                                Constants.MixpanelEvent.STORE_CLOSE,
+                                unixTimestamp
+                            );
                         }
                         catch (Exception ex)
                         {
@@ -125,7 +130,11 @@ namespace PlaySuperUnity
                     {
                         try
                         {
-                            await MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN, DateTime.Now.Ticks);
+                            long unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                            await MixPanelManager.SendEvent(
+                                Constants.MixpanelEvent.STORE_OPEN,
+                                unixTimestamp
+                            );
                         }
                         catch (Exception ex)
                         {
@@ -143,7 +152,8 @@ namespace PlaySuperUnity
                     // More reliable URL check
                     if (data.Contains("store.playsuper.club"))
                     {
-                        string js = $"localStorage.setItem('apiKey', '{PlaySuperUnitySDK.GetApiKey()}')";
+                        string js =
+                            $"localStorage.setItem('apiKey', '{PlaySuperUnitySDK.GetApiKey()}')";
                         GpmWebView.ExecuteJavaScript(js);
                         Debug.Log("Store URL detected - Injecting credentials");
                         InjectCredentials();
@@ -160,7 +170,7 @@ namespace PlaySuperUnity
                             int endIndex = data.IndexOf("\"", startIndex);
                             string token = data.Substring(startIndex, endIndex - startIndex - 1);
 
-                            Debug.Log("Token received");  // Don't log the actual token
+                            Debug.Log("Token received"); // Don't log the actual token
 
                             if (!PlaySuperUnitySDK.IsLoggedIn())
                             {
@@ -179,16 +189,18 @@ namespace PlaySuperUnity
 
         internal static void InjectCredentials()
         {
-
             // Get credentials from SDK
             string apiKey = PlaySuperUnitySDK.GetApiKey();
             string token = PlaySuperUnitySDK.GetAuthToken();
 
             // Log what we're injecting
-            Debug.Log($"Injecting - API Key: {apiKey}, Token present: {!string.IsNullOrEmpty(token)}");
+            Debug.Log(
+                $"Injecting - API Key: {apiKey}, Token present: {!string.IsNullOrEmpty(token)}"
+            );
 
             // Set API key
-            string jsApiKey = $"localStorage.setItem('apiKey', '{apiKey}'); console.log('API key set: {apiKey}');";
+            string jsApiKey =
+                $"localStorage.setItem('apiKey', '{apiKey}'); console.log('API key set: {apiKey}');";
             GpmWebView.ExecuteJavaScript(jsApiKey);
 
             // Set auth token if available
@@ -197,17 +209,16 @@ namespace PlaySuperUnity
                 // IMPORTANT: Format token properly for JavaScript
                 string safeToken = token.Replace("'", "\\'").Replace("\n", "\\n");
 
-                string jsToken = $"localStorage.setItem('authToken', '{safeToken}'); console.log('Auth token set (first 5 chars): ' + localStorage.getItem('authToken').substring(0,5));";
+                string jsToken =
+                    $"localStorage.setItem('authToken', '{safeToken}'); console.log('Auth token set (first 5 chars): ' + localStorage.getItem('authToken').substring(0,5));";
                 GpmWebView.ExecuteJavaScript(jsToken);
 
                 // Verify injection
-                string jsVerify = "console.log('Auth token verification: ' + (localStorage.getItem('authToken') ? 'Present' : 'Missing'));";
+                string jsVerify =
+                    "console.log('Auth token verification: ' + (localStorage.getItem('authToken') ? 'Present' : 'Missing'));";
                 GpmWebView.ExecuteJavaScript(jsVerify);
             }
-
         }
-
-
 
         private static int getWebOrientation()
         {
