@@ -1,6 +1,6 @@
 {
   "name": "com.playsuper.unity",
-  "version": "1.3.2-beta",
+  "version": "1.3.3-beta",
   "displayName": "PlaySuper",
   "description": "PlaySuper's Unity SDK to integrate playsuper store and distribute coins to players",
   "unity": "2022.3",
