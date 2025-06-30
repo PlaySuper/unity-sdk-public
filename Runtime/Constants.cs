@@ -30,8 +30,8 @@ namespace PlaySuperUnity
 
         // Mixpanel Event Queue
         internal const float PROCESS_INTERVAL = 30f;
-        internal const int MAX_QUEUE_SIZE = 1000;
-        internal const int BATCH_SIZE = 20;
-        internal const int MAX_EVENT_AGE_DAYS = 7;
+        internal const int MAX_QUEUE_SIZE = 1024;
+        internal const int BATCH_SIZE = 128;
+        internal const int MAX_QUEUE_SIZE_BYTES = 3 * 1024 * 1024; // 3MB limit
     }
 }

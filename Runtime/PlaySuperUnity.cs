@@ -425,9 +425,8 @@ namespace PlaySuperUnity
         {
             if (pauseStatus)
             {
-                // App is pausing - save current state
                 Debug.Log("[PlaySuper] App pausing - saving state");
-                MixPanelEventQueue.Dispose(); // This saves the queue
+                MixPanelEventQueue.Dispose();
             }
         }
 

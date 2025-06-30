@@ -51,30 +51,39 @@ namespace PlaySuperUnity
         private static int retryCount = 0;
         private static float nextRetryTime = 0f;
 
+        public enum SendResult { Success, TransientFailure, PermanentFailure }
+
         static MixPanelEventQueue()
         {
-            LoadQueueFromFile();
+            Initialize();
         }
 
         public static void EnqueueEvent(string eventName, long timestamp, string payloadJson)
         {
             lock (queueLock)
             {
-                // Clean old events first
-                CleanOldEvents();
-
                 eventQueue.Add(new MixPanelEvent(eventName, timestamp, payloadJson));
 
-                // Enforce size limit
+                // Enforce size limit (3MB) - remove oldest events if exceeded
+                while (GetQueueSizeInBytes() > Constants.MAX_QUEUE_SIZE_BYTES && eventQueue.Count > 0)
+                {
+                    eventQueue.RemoveAt(0); // Remove oldest (FIFO)
+                    Debug.LogWarning("[MixPanel] Queue exceeded 3MB size limit; dropped oldest event");
+                }
+
+                // Fallback count-based limit
                 if (eventQueue.Count > Constants.MAX_QUEUE_SIZE)
                 {
                     eventQueue.RemoveAt(0);
-                    Debug.LogWarning("[MixPanel] Queue exceeded max size; dropped oldest event");
+                    Debug.LogWarning("[MixPanel] Queue exceeded max count; dropped oldest event");
                 }
 
                 SaveQueueToFile();
             }
-            Debug.Log($"[MixPanel] Event queued: {eventName}, queue size: {GetQueueSize()}");
+            Debug.Log($"[MixPanel] Event queued: {eventName}, queue size: {GetQueueSize()}, bytes: {GetQueueSizeInBytes()}");
+
+            // Always try to process queue when adding an event
+            _ = ProcessQueue();
         }
 
         public static async Task ProcessQueue()
@@ -121,26 +130,44 @@ namespace PlaySuperUnity
                 }
 
                 string batchPayload = BuildBatchPayload(batch);
-                bool success = await SendBatchToMixPanel(batchPayload);
+                SendResult result = await SendBatchToMixPanel(batchPayload);
 
-                if (success)
+                if (result == SendResult.Success)
                 {
                     sentCount += batch.Count;
-                    // Remove successful events from main queue
+                    // Remove successfully sent events
                     lock (queueLock)
                     {
+                        var successfulInsertIds = new HashSet<string>();
                         foreach (var ev in batch)
                         {
-                            eventQueue.Remove(ev);
+                            successfulInsertIds.Add(ev.insertId);
                         }
+                        eventQueue.RemoveAll(ev => successfulInsertIds.Contains(ev.insertId));
                         SaveQueueToFile();
                     }
                     retryCount = 0; // Reset on success
                 }
-                else
+                else if (result == SendResult.PermanentFailure)
+                {
+                    // Remove permanently failed events - they'll never succeed
+                    Debug.LogError("[MixPanel] Removing permanently failed batch to prevent infinite retries");
+                    lock (queueLock)
+                    {
+                        var failedInsertIds = new HashSet<string>();
+                        foreach (var ev in batch)
+                        {
+                            failedInsertIds.Add(ev.insertId);
+                        }
+                        eventQueue.RemoveAll(ev => failedInsertIds.Contains(ev.insertId));
+                        SaveQueueToFile();
+                    }
+                    // Continue processing other batches
+                }
+                else // TransientFailure
                 {
                     overallSuccess = false;
-                    break; // Stop processing on failure
+                    break; // Stop processing and retry later
                 }
 
                 // Small delay between batches
@@ -156,7 +183,7 @@ namespace PlaySuperUnity
                 {
                     retryCount++;
                     float backoff =
-                        Mathf.Min(60f, Mathf.Pow(2, retryCount)) + UnityEngine.Random.Range(0f, 1f);
+                        Mathf.Min(90f, Mathf.Pow(2, retryCount)) + UnityEngine.Random.Range(0f, 1f);
                     nextRetryTime = Time.realtimeSinceStartup + backoff;
                     Debug.LogWarning(
                         $"[MixPanel] Batch send failed, retry #{retryCount} in {backoff:F1}s"
@@ -193,8 +220,6 @@ namespace PlaySuperUnity
                         continue;
                     }
 
-                    // For now, trust the payload is correctly formatted
-                    // TODO: Consider using Newtonsoft.Json for robust parsing/rebuilding
                     eventsJsonArray.Add(eventJson.Trim());
                 }
                 catch (Exception ex)
@@ -219,7 +244,7 @@ namespace PlaySuperUnity
             return batchJson;
         }
 
-        private static async Task<bool> SendBatchToMixPanel(string jsonPayload)
+        private static async Task<SendResult> SendBatchToMixPanel(string jsonPayload)
         {
             try
             {
@@ -239,16 +264,29 @@ namespace PlaySuperUnity
                     request.timeout = 30;
 
                     var operation = request.SendWebRequest();
-                    while (!operation.isDone)
+
+                    // Add timeout protection
+                    int attempts = 0;
+                    const int maxAttempts = 350; // ~35 seconds
+
+                    while (!operation.isDone && attempts < maxAttempts)
                     {
                         await Task.Yield();
+                        attempts++;
+                    }
+
+                    if (!operation.isDone)
+                    {
+                        Debug.LogError("[MixPanel] Network request exceeded timeout");
+                        request.Abort();
+                        return SendResult.TransientFailure;
                     }
 
                     // Handle different response codes appropriately
                     if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
                     {
                         Debug.Log($"[MixPanel] Batch sent successfully: {request.responseCode}");
-                        return true;
+                        return SendResult.Success;
                     }
                     else
                     {
@@ -259,10 +297,7 @@ namespace PlaySuperUnity
                                 $"[MixPanel] Permanent error - bad request: {request.responseCode} - {request.error}"
                             );
                             Debug.LogError($"[MixPanel] Response: {request.downloadHandler.text}");
-
-                            // For permanent errors, we should probably clear the queue or handle differently
-                            // For now, still return false to trigger retry, but log as permanent
-                            return false;
+                            return SendResult.PermanentFailure;
                         }
                         else
                         {
@@ -272,7 +307,7 @@ namespace PlaySuperUnity
                             Debug.LogWarning(
                                 $"[MixPanel] Response: {request.downloadHandler.text}"
                             );
-                            return false;
+                            return SendResult.TransientFailure;
                         }
                     }
                 }
@@ -280,34 +315,24 @@ namespace PlaySuperUnity
             catch (Exception ex)
             {
                 Debug.LogError($"[MixPanel] Exception sending batch: {ex.Message}");
-                return false;
-            }
-        }
-
-        private static void CleanOldEvents()
-        {
-            long cutoffTime = DateTimeOffset
-                .UtcNow.AddDays(-Constants.MAX_EVENT_AGE_DAYS)
-                .ToUnixTimeSeconds();
-            int removedCount = eventQueue.RemoveAll(e => e.originalTimestamp < cutoffTime);
-
-            if (removedCount > 0)
-            {
-                Debug.Log(
-                    $"[MixPanel] Removed {removedCount} old events (older than {Constants.MAX_EVENT_AGE_DAYS} days)"
-                );
+                return SendResult.TransientFailure;
             }
         }
 
         private static void SaveQueueToFile()
         {
+            List<MixPanelEvent> snapshot;
+            lock (queueLock)
+            {
+                snapshot = new List<MixPanelEvent>(eventQueue);
+            }
+
             try
             {
-                var wrapper = new MixPanelEventListWrapper(eventQueue);
+                var wrapper = new MixPanelEventListWrapper(snapshot);
                 string json = JsonUtility.ToJson(wrapper);
                 string tmpPath = QueueFilePath + ".tmp";
 
-                // Atomic write: write to temp file, then replace
                 File.WriteAllText(tmpPath, json);
                 if (File.Exists(QueueFilePath))
                 {
@@ -330,9 +355,6 @@ namespace PlaySuperUnity
                     string json = File.ReadAllText(QueueFilePath);
                     var wrapper = JsonUtility.FromJson<MixPanelEventListWrapper>(json);
                     eventQueue = wrapper?.events ?? new List<MixPanelEvent>();
-
-                    // Clean old events on load
-                    CleanOldEvents();
 
                     Debug.Log($"[MixPanel] Loaded {eventQueue.Count} events from file");
                 }
@@ -385,6 +407,23 @@ namespace PlaySuperUnity
             }
         }
 
+        private static int GetQueueSizeInBytes()
+        {
+            lock (queueLock)
+            {
+                int totalBytes = 0;
+                foreach (var ev in eventQueue)
+                {
+                    // Calculate approximate size: eventName + payloadJson + insertId + some overhead
+                    totalBytes += Encoding.UTF8.GetByteCount(ev.eventName ?? "");
+                    totalBytes += Encoding.UTF8.GetByteCount(ev.payloadJson ?? "");
+                    totalBytes += Encoding.UTF8.GetByteCount(ev.insertId ?? "");
+                    totalBytes += 8; // timestamp (long) + some overhead
+                }
+                return totalBytes;
+            }
+        }
+
         public static bool HasQueuedEvents()
         {
             lock (queueLock)
@@ -416,6 +455,14 @@ namespace PlaySuperUnity
             }
 
             Debug.Log("[MixPanel] EventQueue disposed");
+        }
+
+        public static void Initialize()
+        {
+            lock (queueLock)
+            {
+                LoadQueueFromFile();
+            }
         }
     }
 }
