@@ -5,7 +5,7 @@ using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
-using Gpm.Communicator;
+// using Gpm.Communicator;
 using Gpm.WebView;
 using UnityEngine;
 
@@ -21,18 +21,24 @@ namespace PlaySuperUnity
         private static string baseUrl;
         private static ProfileData profile;
         private static bool isDev;
+        private static bool enableAdvertisingId = false;
+        private static bool hasTrackingPermission = false;
 
         // Private constructor to prevent instantiation from outside
         private PlaySuperUnitySDK() { }
 
-        public static void Initialize(string _apiKey, bool _isDev = false)
+        /// <summary>
+        /// Initialize PlaySuper SDK
+        /// </summary>
+        /// <param name="_apiKey">Your API key</param>
+        /// <param name="_isDev">Development mode</param>
+        /// <param name="_enableAdvertisingId">Enable advertising ID collection. Default: FALSE for privacy compliance</param>
+        public static void Initialize(string _apiKey, bool _isDev = false, bool _enableAdvertisingId = false)
         {
             // Clean up any existing instance first
             if (_instance != null)
             {
-                Debug.LogWarning(
-                    "[PlaySuper] SDK already initialized - disposing previous instance"
-                );
+                Debug.LogWarning("[PlaySuper] SDK already initialized - disposing previous instance");
                 Dispose();
             }
 
@@ -43,9 +49,10 @@ namespace PlaySuperUnity
                 // Initialize core SDK first
                 string env = Environment.GetEnvironmentVariable("PROJECT_ENV") ?? "production";
                 isDev = _isDev;
-                baseUrl =
-                    (env == "development" || _isDev) ? Constants.devApiUrl : Constants.prodApiUrl;
+                baseUrl = (env == "development" || _isDev) ? Constants.devApiUrl : Constants.prodApiUrl;
                 apiKey = _apiKey;
+                enableAdvertisingId = _enableAdvertisingId;
+                hasTrackingPermission = false; // Always start as false - game dev must explicitly enable
 
                 // Create SDK GameObject
                 GameObject sdkObject = new GameObject("PlaySuper");
@@ -55,6 +62,7 @@ namespace PlaySuperUnity
                 // Initialize MixPanel lifecycle manager AFTER SDK is ready
                 MixPanelLifecycleManager.Initialize();
 
+                LogPrivacySettings();
                 Debug.Log("PlaySuperUnity initialized with API Key: " + apiKey);
             }
 
@@ -63,6 +71,51 @@ namespace PlaySuperUnity
 
             // Send game open event
             MixPanelManager.SendEvent(Constants.MixpanelEvent.GAME_OPEN);
+        }
+
+        /// <summary>
+        /// Enable advertising ID collection after user grants tracking permission
+        /// Call this ONLY after the user has granted ATT permission (iOS) or appropriate consent
+        /// </summary>
+        /// <param name="callback">Optional callback when operation completes</param>
+        public static void EnableAdvertisingIdCollection(Action<bool> callback = null)
+        {
+            enableAdvertisingId = true;
+            hasTrackingPermission = true;
+
+            LogPrivacySettings();
+
+            Debug.Log("[PlaySuper] Advertising ID collection ENABLED by game developer");
+            callback?.Invoke(true);
+        }
+
+        /// <summary>
+        /// Disable advertising ID collection
+        /// Call this when user revokes tracking permission or opts out
+        /// </summary>
+        public static void DisableAdvertisingIdCollection()
+        {
+            enableAdvertisingId = false;
+            hasTrackingPermission = false;
+
+            // Clear any cached advertising ID
+            PlayerPrefs.DeleteKey("advertising_id");
+            PlayerPrefs.DeleteKey("advertising_id_source");
+            PlayerPrefs.DeleteKey("advertising_id_platform");
+            PlayerPrefs.DeleteKey("advertising_id_timestamp");
+            PlayerPrefs.Save();
+
+            LogPrivacySettings();
+            Debug.Log("[PlaySuper] Advertising ID collection DISABLED and cache cleared");
+        }
+
+        /// <summary>
+        /// Check if advertising ID collection is currently enabled
+        /// </summary>
+        /// <returns>True if enabled and has tracking permission</returns>
+        public static bool IsAdvertisingIdCollectionEnabled()
+        {
+            return enableAdvertisingId && hasTrackingPermission;
         }
 
         private static void HandlePreviousSessionClose()
@@ -381,30 +434,69 @@ namespace PlaySuperUnity
             return baseUrl;
         }
 
-        public static string GetAndroidAdvertiserId()
+        public static AdvertisingIdResult GetAdvertisingId()
         {
-            string advertisingID = "";
+            if (!enableAdvertisingId)
+            {
+                return new AdvertisingIdResult("", "disabled", GetCurrentPlatform());
+            }
+
             try
             {
-                AndroidJavaClass up = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-                AndroidJavaObject currentActivity = up.GetStatic<AndroidJavaObject>(
-                    "currentActivity"
-                );
-                AndroidJavaClass client = new AndroidJavaClass(
-                    "com.google.android.gms.ads.identifier.AdvertisingIdClient"
-                );
-                AndroidJavaObject adInfo = client.CallStatic<AndroidJavaObject>(
-                    "getAdvertisingIdInfo",
-                    currentActivity
-                );
-
-                advertisingID = adInfo.Call<string>("getId").ToString();
+                return GetAdsId.GetAdvertisingId();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Debug.LogError($"Error GetAndroidAdvertiserId: {e.Message}");
+                Debug.LogWarning($"Failed to get advertising ID: {ex.Message}");
+                return new AdvertisingIdResult("", "error", GetCurrentPlatform());
             }
-            return advertisingID;
+        }
+
+        // Keep this for backward compatibility if needed
+        public static string GetAndroidAdvertiserId()
+        {
+            var result = GetAdvertisingId();
+            return result.id;
+        }
+
+        internal static bool IsAdvertisingIdEnabled()
+        {
+            return enableAdvertisingId;
+        }
+
+        internal static bool HasTrackingPermission()
+        {
+            // Simply return our internal state - game dev controls this
+            return hasTrackingPermission;
+        }
+
+        /// <summary>
+        /// Check if we should collect advertising ID based on all privacy requirements
+        /// </summary>
+        /// <returns>True if advertising ID collection is allowed</returns>
+        public static bool ShouldAllowAdvertisingIdCollection()
+        {
+            // Primary setting check
+            if (!enableAdvertisingId)
+            {
+                Debug.Log("[PlaySuper] Advertising ID disabled by configuration");
+                return false;
+            }
+
+            // Check if game developer has granted permission
+            if (!hasTrackingPermission)
+            {
+                Debug.Log("[PlaySuper] Advertising ID disabled - tracking permission not granted by game developer");
+                return false;
+            }
+
+            // Add additional privacy checks here if needed:
+            // - GDPR consent
+            // - CCPA compliance
+            // - Regional privacy laws
+            // - User opt-out preferences
+
+            return true;
         }
 
         void OnDestroy()
@@ -438,11 +530,54 @@ namespace PlaySuperUnity
                 DestroyImmediate(_instance.gameObject);
             }
         }
+
+        // Add these public static methods for GetAdsId to use
+        public static bool IsAdvertisingIdEnabledStatic()
+        {
+            return enableAdvertisingId;
+        }
+
+        public static bool HasTrackingPermissionStatic()
+        {
+            return hasTrackingPermission;
+        }
+
+        private static void LogPrivacySettings()
+        {
+            if (enableAdvertisingId && hasTrackingPermission)
+            {
+                Debug.Log("[PlaySuper] Privacy: Advertising ID collection ENABLED with tracking permission");
+            }
+            else if (enableAdvertisingId && !hasTrackingPermission)
+            {
+                Debug.LogWarning("[PlaySuper] Privacy: Advertising ID collection ENABLED but tracking permission NOT granted");
+            }
+            else
+            {
+                Debug.Log("[PlaySuper] Privacy: Advertising ID collection DISABLED");
+            }
+        }
+
+        private static string GetCurrentPlatform()
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            return "ios";
+#elif UNITY_ANDROID && !UNITY_EDITOR
+            return "android";
+#elif UNITY_EDITOR
+            return "editor";
+#else
+            return "unknown";
+#endif
+        }
     }
 
     internal class MixPanelManager
     {
         private static string _deviceId;
+        private static string _advertisingId;
+        private static string _advertisingIdSource;
+
         internal static string DeviceId
         {
             get
@@ -463,6 +598,64 @@ namespace PlaySuperUnity
             {
                 _deviceId = value;
                 PlayerPrefs.SetString(Constants.deviceIdName, value);
+            }
+        }
+        internal static string AdvertisingId
+        {
+            get
+            {
+                // Check if advertising ID is enabled
+                if (!PlaySuperUnitySDK.IsAdvertisingIdEnabled())
+                {
+                    return "";
+                }
+
+                if (!string.IsNullOrEmpty(_advertisingId))
+                    return _advertisingId;
+
+                // Get fresh advertising ID with source
+                var result = PlaySuperUnitySDK.GetAdvertisingId();
+                _advertisingId = result.id;
+                _advertisingIdSource = result.source;
+
+                return _advertisingId ?? "";
+            }
+        }
+
+        internal static string AdvertisingIdSource
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(_advertisingIdSource))
+                {
+                    // Try to get from cache
+                    if (PlayerPrefs.HasKey("advertising_id_source"))
+                    {
+                        _advertisingIdSource = PlayerPrefs.GetString("advertising_id_source");
+                    }
+                    else
+                    {
+                        // Trigger a fresh fetch
+                        var _ = AdvertisingId; // This will populate both ID and source
+                    }
+                }
+                return _advertisingIdSource ?? "";
+            }
+        }
+
+        internal static string AdvertisingIdPlatform
+        {
+            get
+            {
+                // Get from cache or fresh
+                if (PlayerPrefs.HasKey("advertising_id_platform"))
+                {
+                    return PlayerPrefs.GetString("advertising_id_platform");
+                }
+
+                // Get fresh platform info
+                var result = PlaySuperUnitySDK.GetAdvertisingId();
+                return result.platform;
             }
         }
 
@@ -512,6 +705,27 @@ namespace PlaySuperUnity
                     $@"""studioHandle"": ""{gameData.studio.organization.handle}""",
                 };
 
+                // Add advertising ID if available
+                string adId = AdvertisingId;
+                if (!string.IsNullOrEmpty(adId))
+                {
+                    properties.Add($@"""advertising_id"": ""{adId}""");
+
+                    // Include the source of advertising ID
+                    string adSource = AdvertisingIdSource;
+                    if (!string.IsNullOrEmpty(adSource))
+                    {
+                        properties.Add($@"""advertising_id_source"": ""{adSource}""");
+                    }
+
+                    // Include the platform of advertising ID
+                    string adPlatform = AdvertisingIdPlatform;
+                    if (!string.IsNullOrEmpty(adPlatform))
+                    {
+                        properties.Add($@"""advertising_id_platform"": ""{adPlatform}""");
+                    }
+                }
+
                 // Add user ID only if available
                 if (!string.IsNullOrEmpty(userId))
                 {
@@ -559,6 +773,7 @@ namespace PlaySuperUnity
             // Clear cached data
             gameData = null;
             _deviceId = null;
+            _advertisingId = null;
 
             Debug.Log("[MixPanel] Manager disposed");
         }
