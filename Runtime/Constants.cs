@@ -33,5 +33,10 @@ namespace PlaySuperUnity
         internal const int MAX_QUEUE_SIZE = 1024;
         internal const int BATCH_SIZE = 128;
         internal const int MAX_QUEUE_SIZE_BYTES = 3 * 1024 * 1024; // 3MB limit
+
+        // GrowthBook Configuration
+        internal const string GROWTHBOOK_API_URL = "https://growthbook-api.playsuper.club";
+        internal const string GROWTHBOOK_SDK_KEY = "sdk-7lLklUP0lUDKF2Q8";
+        internal const int GROWTHBOOK_REFRESH_INTERVAL_SECONDS = 300; // How often to refresh feature flags
     }
 }

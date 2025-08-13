@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 // using Gpm.Communicator;
 using Gpm.WebView;
 using UnityEngine;
+using PlaySuperUnity.FeatureFlags;
 
 [assembly: InternalsVisibleTo("playsuper.unity.Runtime.Tests")]
 
@@ -23,6 +24,36 @@ namespace PlaySuperUnity
         private static bool isDev;
         private static bool enableAdvertisingId = false;
         private static bool hasTrackingPermission = false;
+
+        // Remote flag system for server-side feature control
+        private static string eventSingleUrlOverride;  // remote-provided single-event URL
+        private static string eventBatchUrlOverride;   // remote-provided batch URL
+        private static bool remoteAdIdGate = true;     // remote gate (default true, so no change unless set)
+        private static System.Threading.CancellationTokenSource flagsCts;
+        private static IFeatureFlags featureFlags;
+        private static DateTime lastFlagsFetchedAt = DateTime.MinValue;
+
+        [System.Serializable]
+        internal class SdkFlagsResponse
+        {
+            public string eventSingleUrl;
+            public string eventBatchUrl;
+            public bool enableAdId;
+            public int schemaVersion;
+        }
+
+        [System.Serializable]
+        public class GrowthBookFeature
+        {
+            public string defaultValue;
+            public object value;
+        }
+
+        [System.Serializable]
+        public class GrowthBookResponse
+        {
+            public Dictionary<string, GrowthBookFeature> features;
+        }
 
         // Private constructor to prevent instantiation from outside
         private PlaySuperUnitySDK() { }
@@ -64,6 +95,9 @@ namespace PlaySuperUnity
 
                 LogPrivacySettings();
                 Debug.Log("PlaySuperUnity initialized with API Key: " + apiKey);
+
+                // Start flag fetching after core SDK is ready
+                _ = FetchFlagsInitialAndSchedule();
             }
 
             // Handle previous session close event
@@ -483,18 +517,19 @@ namespace PlaySuperUnity
                 return false;
             }
 
+            // Remote flag gate check
+            if (featureFlags != null && !featureFlags.IsAdIdEnabled())
+            {
+                Debug.Log("[PlaySuper] Advertising ID disabled by remote flag");
+                return false;
+            }
+
             // Check if game developer has granted permission
             if (!hasTrackingPermission)
             {
                 Debug.Log("[PlaySuper] Advertising ID disabled - tracking permission not granted by game developer");
                 return false;
             }
-
-            // Add additional privacy checks here if needed:
-            // - GDPR consent
-            // - CCPA compliance
-            // - Regional privacy laws
-            // - User opt-out preferences
 
             return true;
         }
@@ -527,6 +562,12 @@ namespace PlaySuperUnity
         {
             if (_instance != null)
             {
+                try
+                {
+                    flagsCts?.Cancel();
+                    featureFlags?.Dispose();
+                }
+                catch { }
                 DestroyImmediate(_instance.gameObject);
             }
         }
@@ -569,6 +610,122 @@ namespace PlaySuperUnity
 #else
             return "unknown";
 #endif
+        }
+
+        internal static string GetResolvedEventBatchUrl()
+        {
+            return featureFlags?.GetEventBatchUrl() ?? Constants.MIXPANEL_URL_BATCH;
+        }
+
+        internal static string GetResolvedEventSingleUrl()
+        {
+            return featureFlags?.GetEventSingleUrl() ?? Constants.MIXPANEL_URL;
+        }
+
+        private static bool IsValidHttpsUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return false;
+            if (!url.StartsWith("https://")) return false;
+            try { var _ = new Uri(url); return true; } catch { return false; }
+        }
+
+        private static void ApplyFlags(SdkFlagsResponse flags)
+        {
+            if (flags == null) return;
+
+            string prevBatch = eventBatchUrlOverride;
+            string prevSingle = eventSingleUrlOverride;
+            bool prevRemoteAdIdGate = remoteAdIdGate;
+
+            // Only accept valid https URLs
+            eventBatchUrlOverride = IsValidHttpsUrl(flags.eventBatchUrl) ? flags.eventBatchUrl : null;
+            eventSingleUrlOverride = IsValidHttpsUrl(flags.eventSingleUrl) ? flags.eventSingleUrl : null;
+
+            remoteAdIdGate = flags.enableAdId; // remote gate; actual collection still ANDs ATT + local enable
+            lastFlagsFetchedAt = DateTime.UtcNow;
+
+            // Log changes
+            if (prevBatch != eventBatchUrlOverride || prevSingle != eventSingleUrlOverride || prevRemoteAdIdGate != remoteAdIdGate)
+            {
+                Debug.Log($"[PlaySuper][Flags] Updated: batchUrl={eventBatchUrlOverride ?? "default"}, singleUrl={eventSingleUrlOverride ?? "default"}, enableAdId={remoteAdIdGate}");
+            }
+        }
+
+        private static async Task FetchFlagsOnce()
+        {
+            try
+            {
+                // Direct GrowthBook CDN fetch
+                var clientKey = Constants.GROWTHBOOK_SDK_KEY;
+                var url = $"{Constants.GROWTHBOOK_API_URL}/api/features/{clientKey}";
+
+                using (var request = UnityEngine.Networking.UnityWebRequest.Get(url))
+                {
+                    request.timeout = 10;
+                    var operation = request.SendWebRequest();
+
+                    // Wait for completion
+                    while (!operation.isDone)
+                    {
+                        await Task.Yield();
+                    }
+
+                    if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+                    {
+                        var json = request.downloadHandler.text;
+                        var response = JsonUtility.FromJson<GrowthBookResponse>(json);
+
+                        // Extract your flags
+                        var flags = new SdkFlagsResponse
+                        {
+                            eventSingleUrl = GetFeatureValue(response, "sdk_event_single_url", ""),
+                            eventBatchUrl = GetFeatureValue(response, "sdk_event_batch_url", ""),
+                            enableAdId = GetFeatureValue(response, "sdk_enable_ad_id", true),
+                            schemaVersion = 1
+                        };
+
+                        ApplyFlags(flags);
+                        Debug.Log("[PlaySuper][Flags] Successfully fetched flags from GrowthBook CDN");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[PlaySuper][Flags] GrowthBook fetch failed: {request.error}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper][Flags] Exception fetching from GrowthBook: {ex.Message}");
+            }
+        }
+
+        private static string GetFeatureValue(GrowthBookResponse response, string key, string defaultValue)
+        {
+            if (response?.features?.ContainsKey(key) == true)
+            {
+                var feature = response.features[key];
+                return feature.value?.ToString() ?? feature.defaultValue ?? defaultValue;
+            }
+            return defaultValue;
+        }
+
+        private static bool GetFeatureValue(GrowthBookResponse response, string key, bool defaultValue)
+        {
+            if (response?.features?.ContainsKey(key) == true)
+            {
+                var feature = response.features[key];
+                if (feature.value is bool boolValue) return boolValue;
+                if (bool.TryParse(feature.value?.ToString() ?? feature.defaultValue, out bool parsed))
+                    return parsed;
+            }
+            return defaultValue;
+        }
+
+        private static async Task FetchFlagsInitialAndSchedule()
+        {
+            var clientKey = "sdk-7lLklUP0lUDKF2Q8"; // Get from GrowthBook dashboard
+            featureFlags = new FeatureFlags.FeatureFlagsService();
+            await featureFlags.Initialize(clientKey);
         }
     }
 

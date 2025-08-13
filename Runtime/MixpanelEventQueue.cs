@@ -250,9 +250,12 @@ namespace PlaySuperUnity
             {
                 Debug.Log($"[MixPanel] Sending batch with {jsonPayload.Length} characters");
 
+                var endpoint = PlaySuperUnitySDK.GetResolvedEventBatchUrl();
+                Debug.Log($"[MixPanel] Using batch endpoint: {endpoint}");
+
                 using (
                     var request = new UnityEngine.Networking.UnityWebRequest(
-                        Constants.MIXPANEL_URL_BATCH,
+                        endpoint,
                         "POST"
                     )
                 )
