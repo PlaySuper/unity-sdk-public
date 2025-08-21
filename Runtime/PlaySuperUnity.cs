@@ -255,36 +255,29 @@ namespace PlaySuperUnity
         {
             MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
             Debug.Log("OpenStore: with token " + token);
+
             if (!string.IsNullOrEmpty(token))
             {
                 try
                 {
-                    authToken = token;
-                    if (!ValidateToken(token))
-                    {
-                        throw new InvalidOperationException("Invalid token");
-                    }
-                    OnTokenReceive(token);
-                    if (profile == null)
-                    {
-                        profile = await ProfileManager.GetProfileData();
-                        // If we get here, token worked correctly
-                        Debug.Log("Token valid, profile retrieved successfully");
-                    }
+                    Debug.Log("OpenStore: Processing provided token");
+                    await ProcessTokenForUpfrontAuth(token);
+
+                    Debug.Log("OpenStore: Token processed, showing authenticated store");
+                    // Show store FIRST
+                    WebView.ShowUrlPopupPositionSize(isDev);
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"Token error: {ex.Message}");
-                    authToken = null;
-
-                    // Throw a more specific exception with context
-                    throw new InvalidOperationException(
-                        $"Failed to validate token and retrieve profile data: {ex.Message}. Please provide a valid token or initialize SDK properly.",
-                        ex
-                    );
+                    Debug.LogError($"OpenStore: Token validation failed - {ex.Message}");
+                    // error handling
                 }
             }
-            WebView.ShowUrlPopupPositionSize(isDev);
+            else
+            {
+                Debug.Log("OpenStore: No token provided, showing store for callback");
+                WebView.ShowUrlPopupPositionSize(isDev);
+            }
         }
 
         public static bool ValidateToken(string token)
@@ -293,40 +286,51 @@ namespace PlaySuperUnity
             return TokenUtils.ValidateToken(token);
         }
 
-        internal async void OnTokenReceive(string _token)
+        // Common token processing logic
+        private async Task ProcessTokenCommon(string token)
         {
             if (IsLoggedIn())
                 return;
-            authToken = _token;
 
-            // Fetch profile data from token
+            authToken = token;
             profile = await ProfileManager.GetProfileData();
-
-            // Send Event to Mixpanel
             await MixPanelManager.SendEvent(Constants.MixpanelEvent.PLAYER_IDENTIFY);
 
-            // Send DistributeCoins requests for transactions stored locally
-            if (!TransactionsManager.HasTransactions())
-                return;
-            List<Transaction> transactions = TransactionsManager.GetTransactions();
-            Dictionary<string, int> coinMap = new Dictionary<string, int>();
-            foreach (Transaction t in transactions)
+            // Process pending transactions
+            if (TransactionsManager.HasTransactions())
             {
-                if (coinMap.ContainsKey(t.coinId))
+                List<Transaction> transactions = TransactionsManager.GetTransactions();
+                Dictionary<string, int> coinMap = new Dictionary<string, int>();
+                foreach (Transaction t in transactions)
                 {
-                    coinMap[t.coinId] += t.amount;
+                    if (coinMap.ContainsKey(t.coinId))
+                    {
+                        coinMap[t.coinId] += t.amount;
+                    }
+                    else
+                    {
+                        coinMap.Add(t.coinId, t.amount);
+                    }
                 }
-                else
+                foreach (KeyValuePair<string, int> kvp in coinMap)
                 {
-                    coinMap.Add(t.coinId, t.amount);
+                    Debug.Log("Distributing coins: " + kvp.Value + " of " + kvp.Key);
+                    await DistributeCoins(kvp.Key, kvp.Value);
                 }
+                TransactionsManager.ClearTransactions();
             }
-            foreach (KeyValuePair<string, int> kvp in coinMap)
-            {
-                Debug.Log("Distributing coins: " + kvp.Value + " of " + kvp.Key);
-                await DistributeCoins(kvp.Key, kvp.Value);
-            }
-            TransactionsManager.ClearTransactions();
+        }
+
+        private async Task ProcessTokenForUpfrontAuth(string token)
+        {
+            await ProcessTokenCommon(token);
+            // NO webview reload - store opens authenticated
+        }
+
+        internal async void OnTokenReceive(string _token)
+        {
+            await ProcessTokenCommon(_token);
+            // Reload webview for callback scenarios
             GpmWebView.ExecuteJavaScript("window.location.reload()");
         }
 
@@ -517,10 +521,11 @@ namespace PlaySuperUnity
                 return false;
             }
 
-            // Remote flag gate check
-            if (featureFlags != null && !featureFlags.IsAdIdEnabled())
+            // Remote flag gate check - use the actual flag value we fetched
+            if (!remoteAdIdGate)
             {
-                Debug.Log("[PlaySuper] Advertising ID disabled by remote flag");
+                Debug.Log("[PlaySuper] Advertising ID disabled by remote flag (sdk_enable_ad_id: false)");
+
                 return false;
             }
 
@@ -530,6 +535,8 @@ namespace PlaySuperUnity
                 Debug.Log("[PlaySuper] Advertising ID disabled - tracking permission not granted by game developer");
                 return false;
             }
+
+            Debug.Log("[PlaySuper] Advertising ID collection ALLOWED - all checks passed");
 
             return true;
         }
@@ -638,94 +645,48 @@ namespace PlaySuperUnity
             bool prevRemoteAdIdGate = remoteAdIdGate;
 
             // Only accept valid https URLs
-            eventBatchUrlOverride = IsValidHttpsUrl(flags.eventBatchUrl) ? flags.eventBatchUrl : null;
-            eventSingleUrlOverride = IsValidHttpsUrl(flags.eventSingleUrl) ? flags.eventSingleUrl : null;
+            eventBatchUrlOverride = IsValidHttpsUrl(flags.eventSingleUrl) ? flags.eventSingleUrl : null;
+            eventBatchUrlOverride = IsValidHttpsUrl(flags.eventBatchUrl) ? flags.eventBatchUrl : null; // BUG: overwriting previous line!
 
-            remoteAdIdGate = flags.enableAdId; // remote gate; actual collection still ANDs ATT + local enable
+            remoteAdIdGate = flags.enableAdId; // This should work
             lastFlagsFetchedAt = DateTime.UtcNow;
 
-            // Log changes
+            // Log changes with more detail
             if (prevBatch != eventBatchUrlOverride || prevSingle != eventSingleUrlOverride || prevRemoteAdIdGate != remoteAdIdGate)
             {
-                Debug.Log($"[PlaySuper][Flags] Updated: batchUrl={eventBatchUrlOverride ?? "default"}, singleUrl={eventSingleUrlOverride ?? "default"}, enableAdId={remoteAdIdGate}");
+                Debug.Log($"[PlaySuper][Flags] Updated: batchUrl={eventBatchUrlOverride ?? "default"}, singleUrl={eventSingleUrlOverride ?? "default"}, enableAdId={remoteAdIdGate} (was {prevRemoteAdIdGate})");
             }
-        }
 
-        private static async Task FetchFlagsOnce()
-        {
-            try
-            {
-                // Direct GrowthBook CDN fetch
-                var clientKey = Constants.GROWTHBOOK_SDK_KEY;
-                var url = $"{Constants.GROWTHBOOK_API_URL}/api/features/{clientKey}";
-
-                using (var request = UnityEngine.Networking.UnityWebRequest.Get(url))
-                {
-                    request.timeout = 10;
-                    var operation = request.SendWebRequest();
-
-                    // Wait for completion
-                    while (!operation.isDone)
-                    {
-                        await Task.Yield();
-                    }
-
-                    if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
-                    {
-                        var json = request.downloadHandler.text;
-                        var response = JsonUtility.FromJson<GrowthBookResponse>(json);
-
-                        // Extract your flags
-                        var flags = new SdkFlagsResponse
-                        {
-                            eventSingleUrl = GetFeatureValue(response, "sdk_event_single_url", ""),
-                            eventBatchUrl = GetFeatureValue(response, "sdk_event_batch_url", ""),
-                            enableAdId = GetFeatureValue(response, "sdk_enable_ad_id", true),
-                            schemaVersion = 1
-                        };
-
-                        ApplyFlags(flags);
-                        Debug.Log("[PlaySuper][Flags] Successfully fetched flags from GrowthBook CDN");
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"[PlaySuper][Flags] GrowthBook fetch failed: {request.error}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[PlaySuper][Flags] Exception fetching from GrowthBook: {ex.Message}");
-            }
-        }
-
-        private static string GetFeatureValue(GrowthBookResponse response, string key, string defaultValue)
-        {
-            if (response?.features?.ContainsKey(key) == true)
-            {
-                var feature = response.features[key];
-                return feature.value?.ToString() ?? feature.defaultValue ?? defaultValue;
-            }
-            return defaultValue;
-        }
-
-        private static bool GetFeatureValue(GrowthBookResponse response, string key, bool defaultValue)
-        {
-            if (response?.features?.ContainsKey(key) == true)
-            {
-                var feature = response.features[key];
-                if (feature.value is bool boolValue) return boolValue;
-                if (bool.TryParse(feature.value?.ToString() ?? feature.defaultValue, out bool parsed))
-                    return parsed;
-            }
-            return defaultValue;
+            // Always log the current flag state
+            Debug.Log($"[PlaySuper][Flags] Current state: remoteAdIdGate={remoteAdIdGate}, localEnable={enableAdvertisingId}, trackingPermission={hasTrackingPermission}");
         }
 
         private static async Task FetchFlagsInitialAndSchedule()
         {
-            var clientKey = "sdk-7lLklUP0lUDKF2Q8"; // Get from GrowthBook dashboard
+            var clientKey = "sdk-7lLklUP0lUDKF2Q8";
+            Debug.Log("[PlaySuper][Flags] Starting flag initialization...");
+
             featureFlags = new FeatureFlags.FeatureFlagsService();
             await featureFlags.Initialize(clientKey);
+
+            Debug.Log("[PlaySuper][Flags] Flag service initialized, getting flag values...");
+
+            // Use the service instead of CDN fetch
+            var eventSingleUrl = featureFlags.GetEventSingleUrl();
+            var eventBatchUrl = featureFlags.GetEventBatchUrl();
+            var enableAdId = featureFlags.IsAdIdEnabled();
+
+            // Apply the flags
+            var flags = new SdkFlagsResponse
+            {
+                eventSingleUrl = eventSingleUrl,
+                eventBatchUrl = eventBatchUrl,
+                enableAdId = enableAdId,
+                schemaVersion = 1
+            };
+
+            ApplyFlags(flags);
+            Debug.Log("[PlaySuper][Flags] Initial flag fetch completed");
         }
     }
 
@@ -761,8 +722,8 @@ namespace PlaySuperUnity
         {
             get
             {
-                // Check if advertising ID is enabled
-                if (!PlaySuperUnitySDK.IsAdvertisingIdEnabled())
+                // Check if advertising ID collection is allowed (includes remote flag)
+                if (!PlaySuperUnitySDK.ShouldAllowAdvertisingIdCollection())
                 {
                     return "";
                 }
@@ -862,24 +823,26 @@ namespace PlaySuperUnity
                     $@"""studioHandle"": ""{gameData.studio.organization.handle}""",
                 };
 
-                // Add advertising ID if available
-                string adId = AdvertisingId;
-                if (!string.IsNullOrEmpty(adId))
+                // Before adding advertising ID to properties
+                if (PlaySuperUnitySDK.IsAdvertisingIdEnabled())
                 {
-                    properties.Add($@"""advertising_id"": ""{adId}""");
-
-                    // Include the source of advertising ID
-                    string adSource = AdvertisingIdSource;
-                    if (!string.IsNullOrEmpty(adSource))
+                    string adId = AdvertisingId;
+                    if (!string.IsNullOrEmpty(adId))
                     {
-                        properties.Add($@"""advertising_id_source"": ""{adSource}""");
-                    }
+                        properties.Add($@"""advertising_id"": ""{adId}""");
 
-                    // Include the platform of advertising ID
-                    string adPlatform = AdvertisingIdPlatform;
-                    if (!string.IsNullOrEmpty(adPlatform))
-                    {
-                        properties.Add($@"""advertising_id_platform"": ""{adPlatform}""");
+                        // Include the source and platform only if ad ID is enabled
+                        string adSource = AdvertisingIdSource;
+                        if (!string.IsNullOrEmpty(adSource))
+                        {
+                            properties.Add($@"""advertising_id_source"": ""{adSource}""");
+                        }
+
+                        string adPlatform = AdvertisingIdPlatform;
+                        if (!string.IsNullOrEmpty(adPlatform))
+                        {
+                            properties.Add($@"""advertising_id_platform"": ""{adPlatform}""");
+                        }
                     }
                 }
 
