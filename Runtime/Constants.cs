@@ -17,9 +17,6 @@ namespace PlaySuperUnity
         internal const string MIXPANEL_URL_BATCH =
             "https://7ecybbalvlg4pem67c4amx464i0fhpbx.lambda-url.ap-south-1.on.aws/sdk-batch";
 
-        internal const string PS_ANALYTICS_URL_PROD =
-            "https://analytics.playsuper.club";
-
         internal const string deviceIdName = "device_id";
 
         internal const string lastCloseTimestampName = "lastCloseTimestamp";

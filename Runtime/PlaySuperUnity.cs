@@ -34,14 +34,6 @@ namespace PlaySuperUnity
         private static DateTime lastFlagsFetchedAt = DateTime.MinValue;
 
         [System.Serializable]
-        internal class PlayerIdentificationPayload
-        {
-            public string userId;
-            public long timestamp;
-            public string deviceId;
-        }
-
-        [System.Serializable]
         internal class SdkFlagsResponse
         {
             public string eventSingleUrl;
@@ -254,55 +246,6 @@ namespace PlaySuperUnity
             }
         }
 
-        private async Task SendPlayerIdentificationRequest()
-        {
-            if (string.IsNullOrEmpty(authToken) || profile == null)
-            {
-                Debug.LogWarning("[PlaySuper] Cannot send player identification request - missing auth token or profile");
-                return;
-            }
-
-            try
-            {
-                var client = new HttpClient();
-
-
-                // Build the payload with player and game information
-                var payload = new PlayerIdentificationPayload
-                {
-                    userId = profile.id,
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                    deviceId = MixPanelManager.DeviceId
-                };
-
-                var jsonPayload = JsonUtility.ToJson(payload);
-                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-                var url = $"{Constants.PS_ANALYTICS_URL_PROD}/events/identify-user";
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                );
-
-                var response = await client.SendAsync(request);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var responseContent = await response.Content.ReadAsStringAsync();
-                    Debug.Log("[PlaySuper] Player identification request sent successfully: " + responseContent);
-                }
-                else
-                {
-                    Debug.LogWarning($"[PlaySuper] Player identification request failed: {response.StatusCode} - {response.ReasonPhrase}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[PlaySuper] Error sending player identification request: {ex.Message}");
-            }
-        }
-
         public async void OpenStore()
         {
             OpenStore(null);
@@ -351,11 +294,7 @@ namespace PlaySuperUnity
 
             authToken = token;
             profile = await ProfileManager.GetProfileData();
-
             await MixPanelManager.SendEvent(Constants.MixpanelEvent.PLAYER_IDENTIFY);
-
-            // Send player identification POST request
-            await SendPlayerIdentificationRequest();
 
             // Process pending transactions
             if (TransactionsManager.HasTransactions())
