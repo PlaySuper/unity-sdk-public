@@ -164,6 +164,7 @@ namespace PlaySuperUnity.Tests
             Assert.AreEqual(Constants.MIXPANEL_URL, FeatureFlags.GetEventSingleUrl());
             Assert.AreEqual(Constants.MIXPANEL_URL_BATCH, FeatureFlags.GetEventBatchUrl());
             Assert.IsTrue(FeatureFlags.IsAdIdEnabled());
+            Assert.AreEqual(Constants.PS_ANALYTICS_URL, FeatureFlags.GetPSAnalyticsUrl());
             Assert.AreEqual(42.0, FeatureFlags.GetNumberFeature("test", 42.0));
             Assert.AreEqual("{}", FeatureFlags.GetJsonFeature("test", "{}"));
         }

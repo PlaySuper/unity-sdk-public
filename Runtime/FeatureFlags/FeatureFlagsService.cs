@@ -30,6 +30,7 @@ namespace PlaySuperUnity.FeatureFlags
         private const string EVENT_SINGLE_URL_KEY = "sdk_event_single_url";
         private const string EVENT_BATCH_URL_KEY = "sdk_event_batch_url";
         private const string ENABLE_AD_ID_KEY = "sdk_enable_ad_id";
+        private const string PS_ANALYTICS_URL_KEY = "sdk_ps_analytics_url";
 
         public FeatureFlagsService()
         {
@@ -97,6 +98,14 @@ namespace PlaySuperUnity.FeatureFlags
         public bool IsAdIdEnabled()
         {
             return GetBoolFeature(ENABLE_AD_ID_KEY, true);
+        }
+
+        /// <summary>
+        /// Get the PlaySuper Analytics URL for production
+        /// </summary>
+        public string GetPSAnalyticsUrl()
+        {
+            return GetStringFeature(PS_ANALYTICS_URL_KEY, Constants.PS_ANALYTICS_URL);
         }
 
         /// <summary>
@@ -179,6 +188,7 @@ namespace PlaySuperUnity.FeatureFlags
                 Debug.Log($"[PlaySuper][FeatureFlags] - {EVENT_SINGLE_URL_KEY}: {GetEventSingleUrl()}");
                 Debug.Log($"[PlaySuper][FeatureFlags] - {EVENT_BATCH_URL_KEY}: {GetEventBatchUrl()}");
                 Debug.Log($"[PlaySuper][FeatureFlags] - {ENABLE_AD_ID_KEY}: {IsAdIdEnabled()}");
+                Debug.Log($"[PlaySuper][FeatureFlags] - {PS_ANALYTICS_URL_KEY}: {GetPSAnalyticsUrl()}");
             }
         }
 

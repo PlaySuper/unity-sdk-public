@@ -29,6 +29,9 @@ namespace PlaySuperUnity.Tests
             bool adIdEnabled = FeatureFlags.IsAdIdEnabled();
             Assert.IsTrue(adIdEnabled);
 
+            string psAnalyticsUrl = FeatureFlags.GetPSAnalyticsUrl();
+            Assert.AreEqual(Constants.PS_ANALYTICS_URL, psAnalyticsUrl);
+
             double numberValue = FeatureFlags.GetNumberFeature("test_key", 10.5);
             Assert.AreEqual(10.5, numberValue);
 
@@ -99,6 +102,10 @@ namespace PlaySuperUnity.Tests
             // Ad ID
             Assert.IsTrue(FeatureFlags.IsAdIdEnabled());
             Assert.IsTrue(FeatureFlags.IsAdIdEnabled()); // Call twice to ensure consistency
+
+            // PlaySuper Analytics URL
+            Assert.AreEqual(Constants.PS_ANALYTICS_URL, FeatureFlags.GetPSAnalyticsUrl());
+            Assert.AreEqual(Constants.PS_ANALYTICS_URL, FeatureFlags.GetPSAnalyticsUrl()); // Call twice to ensure consistency
 
             // Number feature
             Assert.AreEqual(42.0, FeatureFlags.GetNumberFeature("test", 42.0));

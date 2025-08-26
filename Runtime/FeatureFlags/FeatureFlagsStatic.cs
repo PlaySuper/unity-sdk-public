@@ -50,6 +50,14 @@ namespace PlaySuperUnity.FeatureFlags
         }
 
         /// <summary>
+        /// Get the PlaySuper Analytics URL
+        /// </summary>
+        public static string GetPSAnalyticsUrl()
+        {
+            return instance?.GetPSAnalyticsUrl() ?? Constants.PS_ANALYTICS_URL;
+        }
+
+        /// <summary>
         /// Get a numeric feature value
         /// </summary>
         public static double GetNumberFeature(string key, double defaultValue)

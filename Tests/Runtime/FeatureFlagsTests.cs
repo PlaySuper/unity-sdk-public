@@ -48,6 +48,14 @@ namespace PlaySuperUnity.Tests
         }
 
         [Test]
+        public void GetPSAnalyticsUrl_ShouldReturnDefaultValue_WhenNotInitialized()
+        {
+            // Since we're not initializing the service, it should return the default value
+            string url = featureFlags.GetPSAnalyticsUrl();
+            Assert.AreEqual(Constants.PS_ANALYTICS_URL, url);
+        }
+
+        [Test]
         public void GetNumberFeature_ShouldReturnDefaultValue_WhenNotInitialized()
         {
             // Since we're not initializing the service, it should return the default value

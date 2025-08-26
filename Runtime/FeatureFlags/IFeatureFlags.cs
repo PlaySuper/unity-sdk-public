@@ -29,6 +29,12 @@ namespace PlaySuperUnity.FeatureFlags
         /// </summary>
         bool IsAdIdEnabled();
 
+
+        /// <summary>
+        /// Get the PlaySuper Analytics URL
+        /// </summary>
+        string GetPSAnalyticsUrl();
+
         /// <summary>
         /// Get a numeric feature value
         /// </summary>
