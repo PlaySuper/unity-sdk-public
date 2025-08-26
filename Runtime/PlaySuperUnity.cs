@@ -28,7 +28,9 @@ namespace PlaySuperUnity
         // Remote flag system for server-side feature control
         private static string eventSingleUrlOverride;  // remote-provided single-event URL
         private static string eventBatchUrlOverride;   // remote-provided batch URL
-        private static bool remoteAdIdGate = true;     // remote gate (default true, so no change unless set)
+        private static string psAnalyticsUrlOverride;
+        private static bool remoteAdIdGate = true; // Gated by remote flags
+
         private static System.Threading.CancellationTokenSource flagsCts;
         private static IFeatureFlags featureFlags;
         private static DateTime lastFlagsFetchedAt = DateTime.MinValue;
@@ -47,6 +49,7 @@ namespace PlaySuperUnity
             public string eventSingleUrl;
             public string eventBatchUrl;
             public bool enableAdId;
+            public string psAnalyticsUrl;
             public int schemaVersion;
         }
 
@@ -708,19 +711,21 @@ namespace PlaySuperUnity
 
             string prevBatch = eventBatchUrlOverride;
             string prevSingle = eventSingleUrlOverride;
+            string prevPsAnalytics = psAnalyticsUrlOverride;
             bool prevRemoteAdIdGate = remoteAdIdGate;
 
             // Only accept valid https URLs
-            eventBatchUrlOverride = IsValidHttpsUrl(flags.eventSingleUrl) ? flags.eventSingleUrl : null;
-            eventBatchUrlOverride = IsValidHttpsUrl(flags.eventBatchUrl) ? flags.eventBatchUrl : null; // BUG: overwriting previous line!
+            eventSingleUrlOverride = IsValidHttpsUrl(flags.eventSingleUrl) ? flags.eventSingleUrl : null;
+            eventBatchUrlOverride = IsValidHttpsUrl(flags.eventBatchUrl) ? flags.eventBatchUrl : null;
+            psAnalyticsUrlOverride = IsValidHttpsUrl(flags.psAnalyticsUrl) ? flags.psAnalyticsUrl : null;
 
             remoteAdIdGate = flags.enableAdId; // This should work
             lastFlagsFetchedAt = DateTime.UtcNow;
 
             // Log changes with more detail
-            if (prevBatch != eventBatchUrlOverride || prevSingle != eventSingleUrlOverride || prevRemoteAdIdGate != remoteAdIdGate)
+            if (prevBatch != eventBatchUrlOverride || prevSingle != eventSingleUrlOverride || prevRemoteAdIdGate != remoteAdIdGate || prevPsAnalytics != psAnalyticsUrlOverride)
             {
-                Debug.Log($"[PlaySuper][Flags] Updated: batchUrl={eventBatchUrlOverride ?? "default"}, singleUrl={eventSingleUrlOverride ?? "default"}, enableAdId={remoteAdIdGate} (was {prevRemoteAdIdGate})");
+                Debug.Log($"[PlaySuper][Flags] Updated: batchUrl={eventBatchUrlOverride ?? "default"}, singleUrl={eventSingleUrlOverride ?? "default"}, psAnalyticsUrl={psAnalyticsUrlOverride ?? "default"}, enableAdId={remoteAdIdGate} (was {prevRemoteAdIdGate})");
             }
 
             // Always log the current flag state
