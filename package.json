@@ -3,13 +3,13 @@
   "version": "1.4.0-beta",
   "displayName": "PlaySuper",
   "description": "PlaySuper's Unity SDK to integrate playsuper store and distribute coins to players",
-  "unity": "6000.0",
+  "unity": "2022.3",
   "author": {
     "name": "PlaySuper",
     "email": "lakshya.satpal@playsuper.club",
     "url": "https://playsuper.club"
   },
   "dependencies": {
-    "com.unity.ugui": "2.0.0"
+    "com.unity.ugui": "1.0.0"
   }
 }
