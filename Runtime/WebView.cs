@@ -59,11 +59,12 @@ namespace PlaySuperUnity
             );
         }
 
-        public static void ShowUrlPopupPositionSize(bool isDev = false)
+        public static void ShowUrlPopupPositionSize(bool isDev = false, string url = null)
         {
             Rect safeArea = Screen.safeArea;
+            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
             GpmWebView.ShowUrl(
-                isDev ? Constants.devStoreUrl : Constants.prodStoreUrl,
+                targetUrl,
                 new GpmWebViewRequest.Configuration()
                 {
                     style = GpmWebViewStyle.POPUP,
