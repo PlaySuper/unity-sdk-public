@@ -308,10 +308,10 @@ namespace PlaySuperUnity
 
         public async void OpenStore()
         {
-            OpenStore(null, null);
+            OpenStore(null, null, null);
         }
 
-        public async void OpenStore(string token, string url = null)
+        public async void OpenStore(string token, string url = null, string utmContent = null)
         {
             MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
             Debug.Log("OpenStore: with token " + token);
@@ -325,7 +325,7 @@ namespace PlaySuperUnity
 
                     Debug.Log("OpenStore: Token processed, showing authenticated store");
                     // Show store FIRST
-                    WebView.ShowUrlPopupPositionSize(isDev, url);
+                    WebView.ShowUrlPopupPositionSize(isDev, url, utmContent);
                 }
                 catch (Exception ex)
                 {
@@ -336,7 +336,7 @@ namespace PlaySuperUnity
             else
             {
                 Debug.Log("OpenStore: No token provided, showing store for callback");
-                WebView.ShowUrlPopupPositionSize(isDev, url);
+                WebView.ShowUrlPopupPositionSize(isDev, url, utmContent);
             }
         }
 
