@@ -520,11 +520,13 @@ namespace PlaySuperUnity
             return authToken;
         }
 
-        public static void SetAuthToken(string token)
+        public static async void SetAuthToken(string token)
         {
             authToken = token;
             PlayerPrefs.SetString("authToken", token);
             PlayerPrefs.Save();
+            // Fetch and set the profile for this token
+            profile = await ProfileManager.GetProfileData();
         }
 
         internal static ProfileData GetProfileData()
