@@ -96,6 +96,12 @@ namespace PlaySuperUnity
                 enableAdvertisingId = _enableAdvertisingId;
                 hasTrackingPermission = false; // Always start as false - game dev must explicitly enable
 
+                // Load persisted auth token if available
+                if (PlayerPrefs.HasKey("authToken"))
+                {
+                    authToken = PlayerPrefs.GetString("authToken");
+                }
+
                 // Create SDK GameObject
                 GameObject sdkObject = new GameObject("PlaySuper");
                 _instance = sdkObject.AddComponent<PlaySuperUnitySDK>();
@@ -514,9 +520,11 @@ namespace PlaySuperUnity
             return authToken;
         }
 
-        internal static void SetAuthToken(string token)
+        public static void SetAuthToken(string token)
         {
             authToken = token;
+            PlayerPrefs.SetString("authToken", token);
+            PlayerPrefs.Save();
         }
 
         internal static ProfileData GetProfileData()
