@@ -44,6 +44,36 @@ namespace PlaySuperUnity
         }
 
         [System.Serializable]
+        internal class CreatePlayerPayload
+        {
+            public string uuid;
+        }
+
+        [System.Serializable]
+        public class CreatePlayerData
+        {
+            public string message;
+            public string playerId;
+        }
+
+        [System.Serializable]
+        public class CreatePlayerResponse
+        {
+            public CreatePlayerData data;
+            public int statusCode;
+            public string message;
+            public string requestId;
+            public string timestamp;
+        }
+
+        [System.Serializable]
+        public class FederatedLoginResponse
+        {
+            public string message;
+            public string access_token;
+        }
+
+        [System.Serializable]
         internal class SdkFlagsResponse
         {
             public string eventSingleUrl;
@@ -260,6 +290,110 @@ namespace PlaySuperUnity
                 // IMPORTANT: Store locally on network error
                 TransactionsManager.AddTransaction(coinId, amount);
                 Debug.Log("Transaction stored locally due to network error");
+            }
+        }
+
+        public async Task<CreatePlayerResponse> CreatePlayerWithUuid(string uuid)
+        {
+            if (string.IsNullOrWhiteSpace(uuid))
+            {
+                Debug.LogError("[PlaySuper] CreatePlayerWithUuid requires a valid uuid");
+                return null;
+            }
+
+            try
+            {
+                var client = new HttpClient();
+                var payload = new CreatePlayerPayload { uuid = uuid };
+                var jsonPayload = JsonUtility.ToJson(payload);
+                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                var url = $"{baseUrl}/player/create-with-uuid";
+
+                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+                request.Headers.Accept.Clear();
+                request.Headers.Accept.Add(
+                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
+                );
+                request.Headers.Add("x-api-key", apiKey);
+
+                var response = await client.SendAsync(request);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var createResponse = JsonUtility.FromJson<CreatePlayerResponse>(responseContent);
+                    if (createResponse?.data != null)
+                    {
+                        Debug.Log("[PlaySuper] Player created successfully: " + createResponse.data.playerId);
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[PlaySuper] Player created but response missing data: " + responseContent);
+                    }
+                    return createResponse;
+                }
+
+                Debug.LogError($"Error from CreatePlayerWithUuid: {response.StatusCode} - {responseContent}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Network error in CreatePlayerWithUuid: {ex.Message}");
+                return null;
+            }
+        }
+
+        public async Task<FederatedLoginResponse> LoginFederatedByStudio(string uuid)
+        {
+            if (string.IsNullOrWhiteSpace(uuid))
+            {
+                Debug.LogError("[PlaySuper] LoginFederatedByStudio requires a valid uuid");
+                return null;
+            }
+
+            try
+            {
+                var client = new HttpClient();
+                var payload = new CreatePlayerPayload { uuid = uuid };
+                var jsonPayload = JsonUtility.ToJson(payload);
+                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                var url = $"{baseUrl}/player/login/federatedByStudio";
+
+                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+                request.Headers.Accept.Clear();
+                request.Headers.Accept.Add(
+                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*")
+                );
+                request.Headers.Add("x-api-key", apiKey);
+
+                var response = await client.SendAsync(request);
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var loginResponse = JsonUtility.FromJson<FederatedLoginResponse>(responseContent);
+                    if (!string.IsNullOrEmpty(loginResponse?.access_token))
+                    {
+                        authToken = loginResponse.access_token;
+                        PlayerPrefs.SetString("authToken", authToken);
+                        PlayerPrefs.Save();
+                        profile = await ProfileManager.GetProfileData();
+                        Debug.Log("[PlaySuper] Federated login succeeded");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[PlaySuper] Federated login response missing access_token");
+                    }
+                    return loginResponse;
+                }
+
+                Debug.LogError($"Error from LoginFederatedByStudio: {response.StatusCode} - {responseContent}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Network error in LoginFederatedByStudio: {ex.Message}");
+                return null;
             }
         }
 
