@@ -1,6 +1,36 @@
-obj
-bin
+# Tests - exclude from distribution
+Tests/
+Tests.meta
+
+# Build artifacts
+bin/
 bin.meta
+obj/
 obj.meta
-Tests/run.sh
-Tests/run.sh.meta
+
+# IDE and editor settings
+.idea/
+.vs/
+*.user
+*.suo
+*.userprefs
+
+# OS generated files
+.DS_Store
+.DS_Store?
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+
+# Backup files
+*~
+*.bak
+*.swp
+
+# Visual Studio / Rider
+*.csproj.user
+*.unityproj
+*.pidb
+*.booproj
