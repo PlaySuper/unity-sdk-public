@@ -654,9 +654,13 @@ namespace PlaySuperUnity
 
         internal static List<Transaction> GetLocalTransactions()
         {
-            string json = PlayerPrefs.GetString("transactions");
+            string json = PlayerPrefs.GetString("transactions", "");
+            if (string.IsNullOrEmpty(json))
+            {
+                return new List<Transaction>();
+            }
             TransactionListWrapper wrapper = JsonUtility.FromJson<TransactionListWrapper>(json);
-            return wrapper.transactions;
+            return wrapper?.transactions ?? new List<Transaction>();
         }
 
         internal static string GetBaseUrl()
