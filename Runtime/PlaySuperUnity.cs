@@ -448,36 +448,20 @@ namespace PlaySuperUnity
 
         public async void OpenStore()
         {
-            OpenStore(null, null, null);
+            OpenStore(null, null);
         }
 
-        public async void OpenStore(string token, string url = null, string utmContent = null)
+        public async void OpenStore(string url = null, string utmContent = null)
         {
             MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
-            Debug.Log("OpenStore: with token " + token);
 
-            if (!string.IsNullOrEmpty(token))
+            if (!IsLoggedIn())
             {
-                try
-                {
-                    Debug.Log("OpenStore: Processing provided token");
-                    await ProcessTokenForUpfrontAuth(token);
+                Debug.LogWarning("[PlaySuper] Opening store without valid auth token - user may need to login");
+            }
 
-                    Debug.Log("OpenStore: Token processed, showing authenticated store");
-                    // Show store FIRST
-                    WebView.ShowUrlPopupPositionSize(isDev, url, utmContent);
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"OpenStore: Token validation failed - {ex.Message}");
-                    // error handling
-                }
-            }
-            else
-            {
-                Debug.Log("OpenStore: No token provided, showing store for callback");
-                WebView.ShowUrlPopupPositionSize(isDev, url, utmContent);
-            }
+            Debug.Log("[PlaySuper] OpenStore: opening store");
+            WebView.ShowUrlPopupPositionSize(isDev, url, utmContent);
         }
 
         public static bool ValidateToken(string token)
