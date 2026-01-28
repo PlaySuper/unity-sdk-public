@@ -8,19 +8,249 @@ using Newtonsoft.Json.Linq;
 
 namespace PlaySuperUnity
 {
+    #region Supporting Types
+
     /// <summary>
-    /// Node data type - defines what kind of data this node contains
+    /// Background/Overlay configuration
     /// </summary>
-    public enum NodeDataType
+    [Serializable]
+    public class BackgroundConfig
     {
-        ASSET,   // Pure visual node (images, text only)
-        STATIC,  // Static data (specific rewardIds/productIds)
-        DYNAMIC  // Dynamic fetching (query based on dynamicConfig)
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string color;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string gradient;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string[] images;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? opacity;
     }
 
     /// <summary>
+    /// Text item for title/subtitle arrays
+    /// </summary>
+    [Serializable]
+    public class TextItem
+    {
+        public string text;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string color;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? fontSize;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string fontWeight;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string icon;
+    }
+
+    /// <summary>
+    /// Badge configuration
+    /// </summary>
+    [Serializable]
+    public class BadgeConfig
+    {
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string text;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string backgroundImage;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string icon;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JObject style;
+    }
+
+    /// <summary>
+    /// Call-to-action configuration
+    /// </summary>
+    [Serializable]
+    public class CtaConfig
+    {
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string text;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string action;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string backgroundImage;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string frontImage;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JObject style;
+    }
+
+    /// <summary>
+    /// Dynamic fetching configuration
+    /// </summary>
+    [Serializable]
+    public class DynamicConfig
+    {
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string source;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public int? limit;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string sortBy;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string sortOrder;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JObject filters;
+    }
+
+    /// <summary>
+    /// Reward metadata
+    /// </summary>
+    [Serializable]
+    public class RewardMetadata
+    {
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string brandName;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string[] brandCategory;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string brandLogoImage;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string campaignTitle;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string campaignSubTitle;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string campaignCoverImage;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string campaignDetails;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string termsAndConditions;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string howToRedeem;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string brandRedirectionLink;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public bool? couponExpiryDateExists;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string couponExpiryDate;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string type;
+    }
+
+    /// <summary>
+    /// Inventory information
+    /// </summary>
+    [Serializable]
+    public class InventoryInfo
+    {
+        public int availableQuantity;
+        public string type;
+    }
+
+    /// <summary>
+    /// Price information
+    /// </summary>
+    [Serializable]
+    public class PriceInfo
+    {
+        public float amount;
+        public string coinId;
+    }
+
+    /// <summary>
+    /// Hydrated reward data
+    /// </summary>
+    [Serializable]
+    public class HydratedReward
+    {
+        public string id;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string name;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string description;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string brandName;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string organizationId;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string brandRedirectionLink;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public RewardMetadata metadata;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public InventoryInfo inventory;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public PriceInfo[] price;
+    }
+
+    /// <summary>
+    /// Hydrated product data
+    /// </summary>
+    [Serializable]
+    public class HydratedProduct
+    {
+        public string id;
+        public string type;
+        public string productId;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string title;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string description;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string image;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? price;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? originalPrice;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string currency;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string url;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JObject metadata;
+    }
+
+    #endregion
+
+    /// <summary>
     /// Touchpoint node - represents a single element in the touchpoint tree.
-    /// Fields match the schema exactly, with Json fields as JToken for flexibility.
     /// </summary>
     [Serializable]
     public class TouchpointNode
@@ -28,53 +258,53 @@ namespace PlaySuperUnity
         // Identity
         public string id;
 
-        // Visual - Json fields (flexible structure)
+        // Display order
+        public int displayOrder;
+
+        // Visual fields
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JToken background;  // { color?, gradient?, images[]?, opacity? }
+        public BackgroundConfig background;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string[] images;  // Primary content images
+        public string[] images;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JToken overlay;  // { color?, gradient?, images[]?, opacity? }
+        public BackgroundConfig overlay;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string[] additionalAssets;  // Secondary/supporting assets
+        public string[] additionalAssets;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JToken title;  // [{ text, color, fontSize, fontWeight, ... }]
+        public TextItem[] title;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JToken subtitle;  // [{ text, color, fontSize, fontWeight, ... }]
+        public TextItem[] subtitle;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JToken badge;  // { text, backgroundImage, icon, style }
+        public BadgeConfig badge;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JToken cta;  // { label, action, backgroundImage, frontImage, style }
+        public CtaConfig cta;
 
-        // Data references (for STATIC type)
+        // Data references
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string rewardId;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string productId;
 
-        // Dynamic fetching config (for DYNAMIC type)
+        // Dynamic fetching config
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JToken dynamicConfig;  // { source, limit, sortBy, filters, ... }
+        public DynamicConfig dynamicConfig;
 
-        // Layout/styling hints for SDK
+        // Layout/styling hints
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string layoutHint;  // e.g., "carousel", "grid", "list", "hero"
+        public string layoutHint;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JToken styleHint;  // Additional styling metadata
+        public JObject styleHint;
 
-        // Meta
-        public int displayOrder;
-
-        // Hydrated data (populated by API - reward or product details)
+        // Hydrated data (reward or product details)
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public JToken data;
 
@@ -112,36 +342,6 @@ namespace PlaySuperUnity
         }
 
         /// <summary>
-        /// Get a value from the background object
-        /// </summary>
-        public T GetBackground<T>(string key, T defaultValue = default)
-        {
-            if (background == null || background[key] == null)
-                return defaultValue;
-            return background[key].ToObject<T>();
-        }
-
-        /// <summary>
-        /// Get a value from the badge object
-        /// </summary>
-        public T GetBadge<T>(string key, T defaultValue = default)
-        {
-            if (badge == null || badge[key] == null)
-                return defaultValue;
-            return badge[key].ToObject<T>();
-        }
-
-        /// <summary>
-        /// Get a value from the cta object
-        /// </summary>
-        public T GetCta<T>(string key, T defaultValue = default)
-        {
-            if (cta == null || cta[key] == null)
-                return defaultValue;
-            return cta[key].ToObject<T>();
-        }
-
-        /// <summary>
         /// Get a style hint value by key
         /// </summary>
         public T GetStyleHint<T>(string key, T defaultValue = default)
@@ -152,11 +352,19 @@ namespace PlaySuperUnity
         }
 
         /// <summary>
-        /// Convert the entire data object to a typed class if needed
+        /// Get the hydrated reward data
         /// </summary>
-        public T GetDataAs<T>() where T : class
+        public HydratedReward GetReward()
         {
-            return data?.ToObject<T>();
+            return data?.ToObject<HydratedReward>();
+        }
+
+        /// <summary>
+        /// Get the hydrated product data
+        /// </summary>
+        public HydratedProduct GetProduct()
+        {
+            return data?.ToObject<HydratedProduct>();
         }
 
         #endregion
