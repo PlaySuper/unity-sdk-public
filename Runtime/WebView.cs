@@ -76,7 +76,7 @@ namespace PlaySuperUnity
                 new GpmWebViewRequest.Configuration()
                 {
                     style = GpmWebViewStyle.POPUP,
-                    orientation = getWebOrientation(),
+                    orientation = GpmOrientation.PORTRAIT,
                     isClearCookie = true,
                     isClearCache = true,
                     isNavigationBarVisible = true,
