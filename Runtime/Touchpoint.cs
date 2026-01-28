@@ -3,457 +3,183 @@ using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading.Tasks;
 using UnityEngine;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace PlaySuperUnity
 {
-    #region Enums
-
-    public enum WidgetType
+    /// <summary>
+    /// Node data type - defines what kind of data this node contains
+    /// </summary>
+    public enum NodeDataType
     {
-        MULTI_SECTION,
-        SINGLE_SECTION,
-        LIST_WITH_POPUP
-    }
-
-    public enum ListItemType
-    {
-        COUPON,
-        PRODUCT
-    }
-
-    public enum SectionType
-    {
-        Static,
-        Dynamic
-    }
-
-    public enum LabelType
-    {
-        Asset,
-        Text
-    }
-
-    public enum CtaStyle
-    {
-        Outlined,
-        Filled,
-        Text
-    }
-
-    #endregion
-
-    #region Nested Types
-
-    [Serializable]
-    public class TitleDto
-    {
-        public string text;
-        public string color;
-        public string icon;
-    }
-
-    [Serializable]
-    public class SubtitleDto
-    {
-        public string text;
-        public string color;
-    }
-
-    [Serializable]
-    public class LabelDto
-    {
-        public string type;
-        public string assetUrl;
-        public string text;
-        public string color;
-        public string backgroundColor;
-    }
-
-    [Serializable]
-    public class BadgeDto
-    {
-        public string assetUrl;
-        public string text;
-    }
-
-    [Serializable]
-    public class ListItemBadgeDto
-    {
-        public string text;
-        public string textColor;
-        public string backgroundColor;
-        public string logo;
-    }
-
-    [Serializable]
-    public class PriceDto
-    {
-        public float value;
-        public string currency;
-        public string icon;
-    }
-
-    [Serializable]
-    public class AdditionalAssetDto
-    {
-        public string id;
-        public string assetUrl;
-    }
-
-    [Serializable]
-    public class CtaDto
-    {
-        public string text;
-        public string link;
-        public string backgroundColor;
-        public string textColor;
-    }
-
-    [Serializable]
-    public class CtaWithIconDto
-    {
-        public string icon;
-        public string text;
-        public string backgroundColor;
-        public string textColor;
-        public string link;
-    }
-
-    [Serializable]
-    public class SectionCtaDto
-    {
-        public string text;
-        public string link;
-        public string backgroundImage;
-        public string frontImage;
-        public LabelDto label;
-    }
-
-    [Serializable]
-    public class SecondaryCtaDto
-    {
-        public string text;
-        public string link;
-        public string style;
-    }
-
-    [Serializable]
-    public class CtaHighlightedDto
-    {
-        public string icon;
-        public string text;
-        public string highlightedText;
-        public string highlightedTextColor;
-        public string backgroundColor;
-        public string textColor;
-        public string link;
-    }
-
-    [Serializable]
-    public class PopupDto
-    {
-        public TitleDto title;
-        public SubtitleDto subtitle;
-        public string backgroundImage;
-        public string image;
-        public string couponImage;
-        public string logo;
-        public string brandName;
-        public string offerTitle;
-        public string offerSubtitle;
-        public float mrp;
-        public float discountedListingPrice;
-        public string currency;
-        public string backgroundColor;
-        public BadgeDto badge;
-        public LabelDto label;
-        public CtaHighlightedDto cta;
-    }
-
-    #endregion
-
-    #region Detailed Types
-
-    #region Reward Types
-
-    [Serializable]
-    public class CampaignAssets
-    {
-        public string banner;
-        public string thumbnail;
-    }
-
-    [Serializable]
-    public class RewardMetadata
-    {
-        public string brandName;
-        public List<string> brandCategory;
-        public string campaignTitle;
-        public string campaignSubTitle;
-        public string campaignCoverImage;
-        public CampaignAssets campaignAssets;
-        public string campaignDetails;
-        public string brandLogoImage;
-        public string termsAndConditions;
-        public string howToRedeem;
-        public string brandRedirectionLink;
-        public bool couponExpiryDateExists;
-        public string couponExpiryDate;
-        public string denomination;
-        public string discountOffPercentage;
+        ASSET,   // Pure visual node (images, text only)
+        STATIC,  // Static data (specific rewardIds/productIds)
+        DYNAMIC  // Dynamic fetching (query based on dynamicConfig)
     }
 
     /// <summary>
-    /// Full reward data from the reward API
+    /// Touchpoint node - represents a single element in the touchpoint tree.
+    /// Fields match the schema exactly, with Json fields as JToken for flexibility.
     /// </summary>
     [Serializable]
-    public class RewardDetail
+    public class TouchpointNode
     {
+        // Identity
         public string id;
-        public string name;
-        public string description;
-        public string startDate;
-        public string endDate;
-        public float price;
-        public int availableQuantity;
-        public string brandId;
-        public string brandName;
-        public string organizationId;
-        public string brandRedirectionLink;
-        public RewardMetadata metadata;
+
+        // Visual - Json fields (flexible structure)
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken background;  // { color?, gradient?, images[]?, opacity? }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string[] images;  // Primary content images
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken overlay;  // { color?, gradient?, images[]?, opacity? }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string[] additionalAssets;  // Secondary/supporting assets
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken title;  // [{ text, color, fontSize, fontWeight, ... }]
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken subtitle;  // [{ text, color, fontSize, fontWeight, ... }]
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken badge;  // { text, backgroundImage, icon, style }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken cta;  // { label, action, backgroundImage, frontImage, style }
+
+        // Data references (for STATIC type)
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string rewardId;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string productId;
+
+        // Dynamic fetching config (for DYNAMIC type)
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken dynamicConfig;  // { source, limit, sortBy, filters, ... }
+
+        // Layout/styling hints for SDK
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string layoutHint;  // e.g., "carousel", "grid", "list", "hero"
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken styleHint;  // Additional styling metadata
+
+        // Meta
+        public int displayOrder;
+
+        // Hydrated data (populated by API - reward or product details)
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public JToken data;
+
+        // Nested content
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public TouchpointNode[] nodes;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public TouchpointNode popup;
+
+        #region Helper Properties
+
+        /// <summary>
+        /// Check if this node has reward data
+        /// </summary>
+        public bool HasReward => !string.IsNullOrEmpty(rewardId) || (data != null && data.Value<string>("type") != "product");
+
+        /// <summary>
+        /// Check if this node has product data
+        /// </summary>
+        public bool HasProduct => !string.IsNullOrEmpty(productId) || data?.Value<string>("type") == "product";
+
+        #endregion
+
+        #region Helper Methods
+
+        /// <summary>
+        /// Get a value from the data object
+        /// </summary>
+        public T GetData<T>(string key, T defaultValue = default)
+        {
+            if (data == null || data[key] == null)
+                return defaultValue;
+            return data[key].ToObject<T>();
+        }
+
+        /// <summary>
+        /// Get a value from the background object
+        /// </summary>
+        public T GetBackground<T>(string key, T defaultValue = default)
+        {
+            if (background == null || background[key] == null)
+                return defaultValue;
+            return background[key].ToObject<T>();
+        }
+
+        /// <summary>
+        /// Get a value from the badge object
+        /// </summary>
+        public T GetBadge<T>(string key, T defaultValue = default)
+        {
+            if (badge == null || badge[key] == null)
+                return defaultValue;
+            return badge[key].ToObject<T>();
+        }
+
+        /// <summary>
+        /// Get a value from the cta object
+        /// </summary>
+        public T GetCta<T>(string key, T defaultValue = default)
+        {
+            if (cta == null || cta[key] == null)
+                return defaultValue;
+            return cta[key].ToObject<T>();
+        }
+
+        /// <summary>
+        /// Get a style hint value by key
+        /// </summary>
+        public T GetStyleHint<T>(string key, T defaultValue = default)
+        {
+            if (styleHint == null || styleHint[key] == null)
+                return defaultValue;
+            return styleHint[key].ToObject<T>();
+        }
+
+        /// <summary>
+        /// Convert the entire data object to a typed class if needed
+        /// </summary>
+        public T GetDataAs<T>() where T : class
+        {
+            return data?.ToObject<T>();
+        }
+
+        #endregion
     }
 
-    #endregion
-
-    #region Product Types
-
-    [Serializable]
-    public class ProductCategory
-    {
-        public string id;
-        public string name;
-        public string slug;
-    }
-
-    [Serializable]
-    public class ProductInventory
-    {
-        public string totalQuantity;
-    }
-
-    [Serializable]
-    public class SkuInventory
-    {
-        public string quantity;
-    }
-
-    [Serializable]
-    public class PlaySuperPrice
-    {
-        public string listingPrice;
-        public string discountedListingPrice;
-        public string discountPercent;
-        public string marginPercent;
-        public string discountValue;
-        public string marginValue;
-        public string coinSpread;
-        public string mrp;
-        public float coinRequiredForDiscount;
-        public float coinsRequiredForMaxDiscount;
-    }
-
-    [Serializable]
-    public class ProductSku
-    {
-        public string id;
-        public string name;
-        public string barcode;
-        public string imageUrl;
-        public SkuInventory inventory;
-        public string createdAt;
-        public string updatedAt;
-        public bool isPricingAvailable;
-        public float competitorPrice;
-        public string competitorPlatform;
-        public PlaySuperPrice playSuperPrice;
-        public bool isActive;
-    }
+    #region Response Types
 
     /// <summary>
-    /// Full product data from the product API
-    /// </summary>
-    [Serializable]
-    public class ProductDetail
-    {
-        public string id;
-        public string sourceId;
-        public string name;
-        public string description;
-        public string plainTextDescription;
-        public string brandName;
-        public string imageUrl;
-        public List<string> images;
-        public bool isActive;
-        public string categoryId;
-        public ProductCategory category;
-        public string sourceCategory;
-        public string sourceSubCategory;
-        public string createdAt;
-        public string updatedAt;
-        public string lastSyncedAt;
-        public float rating;
-        public ProductInventory inventory;
-        public bool hasException;
-        public List<ProductSku> skus;
-    }
-
-    #endregion
-
-    #endregion
-
-    #region Item Response Types
-
-    [Serializable]
-    public class ItemResponse
-    {
-        public string id;
-        public string rewardId;
-        public string productId;
-        public string title;
-        public string subtitle;
-        public string image;
-        public string logo;
-        public string brandName;
-        public float mrp;
-        public float listingPrice;
-        public float discountedListingPrice;
-        public string currency;
-        public float coinsRequired;
-        public string coinsIcon;
-        public string backgroundColor;
-        public string textColor;
-        public BadgeDto badge;
-
-        // Full objects (complete data from product/reward API)
-        public ProductDetail product;
-        public RewardDetail reward;
-    }
-
-    [Serializable]
-    public class ListItemResponse
-    {
-        public string id;
-        public string rewardId;
-        public string productId;
-        public string logo;
-        public string image;
-        public string brandLogo;
-        public string brandName;
-        public string title;
-        public string subtitle;
-        public string backgroundColor;
-        public string textColor;
-        public float mrp;
-        public float listingPrice;
-        public float discountedListingPrice;
-        public float coinsRequiredForDiscount;
-        public string currency;
-        public string coinsIcon;
-        public PriceDto price;
-        public ListItemBadgeDto badge;
-        public CtaWithIconDto cta;
-        public PopupDto popup;
-
-        // Full objects (complete data from product/reward API)
-        public ProductDetail product;
-        public RewardDetail reward;
-    }
-
-    [Serializable]
-    public class SectionResponse
-    {
-        public string id;
-        public string type;
-        public string backgroundImage;
-        public string frontImage;
-        public SectionCtaDto cta;
-        public BadgeDto badge;
-        public List<ItemResponse> items;
-    }
-
-    #endregion
-
-    #region Main Response Types
-
-    /// <summary>
-    /// Runtime touchpoint response - use this for rendering widgets
+    /// Touchpoint response - represents a complete touchpoint with nodes
     /// </summary>
     [Serializable]
     public class TouchpointResponse
     {
-        public string touchpoint;
-        public string type;
-        public string listItemType;
-
-        // Layout properties
-        public TitleDto title;
-        public SubtitleDto subtitle;
-        public string backgroundColor;
-        public string backgroundImage;
-        public string image;
-        public string brandLogo;
-        public string brandName;
-        public LabelDto label;
-        public BadgeDto badge;
-
-        // Content arrays (depends on widget type)
-        public List<SectionResponse> sections;
-        public List<ItemResponse> items;
-        public List<ListItemResponse> listItems;
-
-        // Additional elements
-        public List<AdditionalAssetDto> additionalAssets;
-        public PopupDto popup;
-        public string ctaLink;
-        public CtaWithIconDto cta;
-        public CtaDto footerCta;
-        public SecondaryCtaDto secondaryFooterCta;
-    }
-
-    /// <summary>
-    /// Config response - used for admin/listing purposes
-    /// </summary>
-    [Serializable]
-    public class TouchpointConfigResponse
-    {
         public string id;
-        public string name;
-        public string type;
-        public string listItemType;
-        public string gameId;
-        public bool isActive;
-        public int priority;
-        public string createdAt;
-        public string updatedAt;
 
-        // Config fields
-        public TitleDto title;
-        public SubtitleDto subtitle;
-        public string backgroundColor;
-        public string backgroundImage;
-        public string image;
-        public string brandLogo;
-        public string brandName;
-        public LabelDto label;
-        public BadgeDto badge;
-        public PopupDto popup;
-        public string ctaLink;
-        public CtaWithIconDto cta;
-        public CtaDto footerCta;
-        public SecondaryCtaDto secondaryFooterCta;
-        public List<AdditionalAssetDto> additionalAssets;
-        public List<SectionResponse> sections;
-        public List<ItemResponse> items;
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string gameId;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string name;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public TouchpointNode[] nodes;
     }
 
     /// <summary>
@@ -462,12 +188,16 @@ namespace PlaySuperUnity
     [Serializable]
     public class TouchpointListResponse
     {
-        public List<TouchpointConfigResponse> touchpoints;
+        public TouchpointResponse[] touchpoints;
         public int total;
     }
 
+    #endregion
+
+    #region Internal API Response Wrappers
+
     /// <summary>
-    /// API wrapper for touchpoint response
+    /// Internal API wrapper for touchpoint response
     /// </summary>
     [Serializable]
     internal class TouchpointApiResponse
@@ -478,7 +208,7 @@ namespace PlaySuperUnity
     }
 
     /// <summary>
-    /// API wrapper for touchpoint list response
+    /// Internal API wrapper for touchpoint list response
     /// </summary>
     [Serializable]
     internal class TouchpointListApiResponse
@@ -498,7 +228,7 @@ namespace PlaySuperUnity
         /// <summary>
         /// Get a touchpoint by its name
         /// </summary>
-        /// <param name="name">Touchpoint name (e.g., "ftue", "daily_reward")</param>
+        /// <param name="name">Touchpoint name (e.g., "Main Store")</param>
         /// <param name="coinId">Coin ID for price calculations</param>
         /// <returns>TouchpointResponse or null on error</returns>
         public static async Task<TouchpointResponse> GetTouchpointByName(string name, string coinId)
@@ -529,8 +259,7 @@ namespace PlaySuperUnity
             {
                 var client = new HttpClient();
                 var encodedName = Uri.EscapeDataString(name);
-                var encodedCoinId = Uri.EscapeDataString(coinId);
-                var url = $"{baseUrl}/touchpoints/name/{encodedName}?coinId={encodedCoinId}";
+                var url = $"{baseUrl}/touchpoints/name/{encodedName}?coinId={Uri.EscapeDataString(coinId)}";
 
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Accept.Clear();
@@ -547,7 +276,7 @@ namespace PlaySuperUnity
                 if (response.IsSuccessStatusCode)
                 {
                     string json = await response.Content.ReadAsStringAsync();
-                    TouchpointApiResponse apiResponse = JsonUtility.FromJson<TouchpointApiResponse>(json);
+                    TouchpointApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointApiResponse>(json);
                     return apiResponse?.data;
                 }
                 else
@@ -602,8 +331,7 @@ namespace PlaySuperUnity
             {
                 var client = new HttpClient();
                 var encodedId = Uri.EscapeDataString(id);
-                var encodedCoinId = Uri.EscapeDataString(coinId);
-                var url = $"{baseUrl}/touchpoints/{encodedId}?coinId={encodedCoinId}";
+                var url = $"{baseUrl}/touchpoints/{encodedId}?coinId={Uri.EscapeDataString(coinId)}";
 
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Accept.Clear();
@@ -620,7 +348,7 @@ namespace PlaySuperUnity
                 if (response.IsSuccessStatusCode)
                 {
                     string json = await response.Content.ReadAsStringAsync();
-                    TouchpointApiResponse apiResponse = JsonUtility.FromJson<TouchpointApiResponse>(json);
+                    TouchpointApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointApiResponse>(json);
                     return apiResponse?.data;
                 }
                 else
@@ -644,8 +372,9 @@ namespace PlaySuperUnity
         /// <summary>
         /// List all active touchpoints for the game
         /// </summary>
+        /// <param name="coinId">Coin ID for price calculations</param>
         /// <returns>TouchpointListResponse or null on error</returns>
-        public static async Task<TouchpointListResponse> ListTouchpoints()
+        public static async Task<TouchpointListResponse> ListTouchpoints(string coinId)
         {
             string baseUrl = PlaySuperUnitySDK.GetBaseUrl();
             string apiKey = PlaySuperUnitySDK.GetApiKey();
@@ -657,10 +386,16 @@ namespace PlaySuperUnity
                 return null;
             }
 
+            if (string.IsNullOrEmpty(coinId))
+            {
+                Debug.LogError("[PlaySuper] Cannot list touchpoints - coinId is required");
+                return null;
+            }
+
             try
             {
                 var client = new HttpClient();
-                var url = $"{baseUrl}/touchpoints";
+                var url = $"{baseUrl}/touchpoints?coinId={Uri.EscapeDataString(coinId)}";
 
                 var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Accept.Clear();
@@ -677,7 +412,7 @@ namespace PlaySuperUnity
                 if (response.IsSuccessStatusCode)
                 {
                     string json = await response.Content.ReadAsStringAsync();
-                    TouchpointListApiResponse apiResponse = JsonUtility.FromJson<TouchpointListApiResponse>(json);
+                    TouchpointListApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointListApiResponse>(json);
                     return apiResponse?.data;
                 }
                 else
