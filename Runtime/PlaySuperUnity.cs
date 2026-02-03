@@ -461,7 +461,7 @@ namespace PlaySuperUnity
             }
 
             Debug.Log("[PlaySuper] OpenStore: opening store");
-            WebView.ShowUrlPopupPositionSize(isDev, url, utmContent);
+            WebView.ShowUrlFullScreen(isDev, url, utmContent);
         }
 
         public static bool ValidateToken(string token)

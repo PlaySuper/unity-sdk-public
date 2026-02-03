@@ -9,58 +9,99 @@ namespace PlaySuperUnity
 {
     internal class WebView
     {
-        public static void ShowUrlFullScreen()
+        private static ScreenOrientation originalOrientation;
+
+        public static void ShowUrlFullScreen(bool isDev = false, string url = null, string utmContent = null)
         {
+            // Save original orientation before opening WebView
+            originalOrientation = Screen.orientation;
+
+            // Set to portrait for the WebView
+            Screen.orientation = ScreenOrientation.Portrait;
+
+            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+
+            // Append utm_content as query parameter if provided
+            if (!string.IsNullOrEmpty(utmContent))
+            {
+                string separator = targetUrl.Contains("?") ? "&" : "?";
+                targetUrl = $"{targetUrl}{separator}utm_content={Uri.EscapeDataString(utmContent)}";
+            }
+
             GpmWebView.ShowUrl(
-                "https://store.playsuper.club/",
+                targetUrl,
                 new GpmWebViewRequest.Configuration()
                 {
                     style = GpmWebViewStyle.FULLSCREEN,
-                    orientation = GpmOrientation.UNSPECIFIED,
-                    isClearCookie = true,
-                    isClearCache = true,
-                    backgroundColor = "#FFFFFF",
-                    isNavigationBarVisible = true,
-                    navigationBarColor = "#4B96E6",
-                    title = "Offer Zone",
-                    isBackButtonVisible = true,
-                    isForwardButtonVisible = true,
-                    isCloseButtonVisible = true,
-                    supportMultipleWindows = true,
+                    orientation = GpmOrientation.PORTRAIT,
 #if UNITY_IOS
-                    contentMode = GpmWebViewContentMode.MOBILE
+                    isNavigationBarVisible = true,
+                    navigationBarColor = "#FFFFFF",
+                    title = "",
+                    isBackButtonVisible = false,
+                    isForwardButtonVisible = false,
+                    isCloseButtonVisible = true,
+                    contentMode = GpmWebViewContentMode.MOBILE,
+#else
+                    isNavigationBarVisible = false,
 #endif
+                    supportMultipleWindows = true,
                 },
                 OnCallback,
                 new List<string>() { "USER_CUSTOM_SCHEME" }
             );
         }
 
-        public static void ShowUrlPopupDefault()
+        public static void ShowUrlPopupDefault(bool isDev = false, string url = null, string utmContent = null)
         {
+            // Save original orientation before opening WebView
+            originalOrientation = Screen.orientation;
+
+            // Set to portrait for the WebView
+            Screen.orientation = ScreenOrientation.Portrait;
+
+            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+
+            // Append utm_content as query parameter if provided
+            if (!string.IsNullOrEmpty(utmContent))
+            {
+                string separator = targetUrl.Contains("?") ? "&" : "?";
+                targetUrl = $"{targetUrl}{separator}utm_content={Uri.EscapeDataString(utmContent)}";
+            }
+
             GpmWebView.ShowUrl(
-                "https://playsuper.club/",
+                targetUrl,
                 new GpmWebViewRequest.Configuration()
                 {
                     style = GpmWebViewStyle.POPUP,
-                    orientation = GpmOrientation.UNSPECIFIED,
-                    isClearCookie = true,
-                    isClearCache = true,
-                    isNavigationBarVisible = true,
-                    isCloseButtonVisible = true,
-                    supportMultipleWindows = true,
+                    orientation = GpmOrientation.PORTRAIT,
 #if UNITY_IOS
+                    isNavigationBarVisible = true,
+                    navigationBarColor = "#FFFFFF",
+                    title = "",
+                    isBackButtonVisible = false,
+                    isForwardButtonVisible = false,
+                    isCloseButtonVisible = true,
                     contentMode = GpmWebViewContentMode.MOBILE,
                     isMaskViewVisible = true,
+#else
+                    isNavigationBarVisible = false,
 #endif
+                    supportMultipleWindows = true,
                 },
                 OnCallback,
-                new List<string>() { "http://" }
+                new List<string>() { "USER_CUSTOM_SCHEME" }
             );
         }
 
         public static void ShowUrlPopupPositionSize(bool isDev = false, string url = null, string utmContent = null)
         {
+            // Save original orientation before opening WebView
+            originalOrientation = Screen.orientation;
+
+            // Set to portrait for the WebView
+            Screen.orientation = ScreenOrientation.Portrait;
+
             Rect safeArea = Screen.safeArea;
             string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
 
@@ -77,10 +118,18 @@ namespace PlaySuperUnity
                 {
                     style = GpmWebViewStyle.POPUP,
                     orientation = GpmOrientation.PORTRAIT,
-                    isClearCookie = true,
-                    isClearCache = true,
+#if UNITY_IOS
                     isNavigationBarVisible = true,
+                    navigationBarColor = "#FFFFFF",
+                    title = "",
+                    isBackButtonVisible = false,
+                    isForwardButtonVisible = false,
                     isCloseButtonVisible = true,
+                    contentMode = GpmWebViewContentMode.MOBILE,
+                    isMaskViewVisible = true,
+#else
+                    isNavigationBarVisible = false,
+#endif
                     position = new GpmWebViewRequest.Position
                     {
                         hasValue = true,
@@ -94,13 +143,9 @@ namespace PlaySuperUnity
                         height = (int)safeArea.height,
                     },
                     supportMultipleWindows = true,
-#if UNITY_IOS
-                    contentMode = GpmWebViewContentMode.MOBILE,
-                    isMaskViewVisible = true,
-#endif
                 },
                 OnCallback,
-                null
+                new List<string>() { "USER_CUSTOM_SCHEME" }
             );
         }
 
@@ -115,6 +160,9 @@ namespace PlaySuperUnity
             switch (callbackType)
             {
                 case GpmWebViewCallback.CallbackType.Close:
+                    // Restore original orientation
+                    Screen.orientation = originalOrientation;
+
                     _ = Task.Run(async () =>
                     {
                         try
