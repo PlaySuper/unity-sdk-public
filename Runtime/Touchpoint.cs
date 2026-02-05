@@ -228,19 +228,10 @@ namespace PlaySuperUnity
         public string name;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string description;
-
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string brandName;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string imageUrl;
-
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string[] images;
-
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string category;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public float? rating;
@@ -266,10 +257,6 @@ namespace PlaySuperUnity
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public int? coinsRequiredForMaxDiscount;
-
-        // Optional
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public JObject metadata;
     }
 
     #endregion
