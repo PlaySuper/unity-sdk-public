@@ -218,31 +218,56 @@ namespace PlaySuperUnity
     [Serializable]
     public class HydratedProduct
     {
+        // Required fields
         public string id;
         public string type;
         public string productId;
 
+        // Product info
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string title;
+        public string name;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string description;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string image;
+        public string brandName;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public float? price;
+        public string imageUrl;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public float? originalPrice;
+        public string[] images;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string currency;
+        public string category;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
-        public string url;
+        public float? rating;
 
+        // Pricing (from default variant's playSuperPrice)
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? listingPrice;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? discountedListingPrice;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? mrp;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? discountPercent;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public float? coinSpread;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public int? coinRequiredForDiscount;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public int? coinsRequiredForMaxDiscount;
+
+        // Optional
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public JObject metadata;
     }
