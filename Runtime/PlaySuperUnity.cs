@@ -199,6 +199,54 @@ namespace PlaySuperUnity
             return enableAdvertisingId && hasTrackingPermission;
         }
 
+        #region User Properties
+
+        /// <summary>
+        /// Set persistent user properties that will be sent with every event.
+        /// Use this for attributes that describe the user (VIP level, cohort, A/B test group, etc.)
+        /// Properties are merged with existing ones - call ClearUserProperties() to reset.
+        /// </summary>
+        /// <param name="properties">Dictionary of property names and values (string, int, float, bool supported)</param>
+        /// <example>
+        /// PlaySuperUnitySDK.SetUserProperties(new Dictionary&lt;string, object&gt;
+        /// {
+        ///     { "vip_level", 3 },
+        ///     { "lifetime_purchases", 5 },
+        ///     { "ab_test_group", "variant_b" }
+        /// });
+        /// </example>
+        public static void SetUserProperties(Dictionary<string, object> properties)
+        {
+            if (properties == null || properties.Count == 0)
+            {
+                Debug.LogWarning("[PlaySuper] SetUserProperties called with null or empty properties");
+                return;
+            }
+
+            MixPanelManager.SetUserProperties(properties);
+            Debug.Log($"[PlaySuper] User properties set: {properties.Count} properties");
+        }
+
+        /// <summary>
+        /// Clear all user properties. Call this on logout or when user context changes.
+        /// </summary>
+        public static void ClearUserProperties()
+        {
+            MixPanelManager.ClearUserProperties();
+            Debug.Log("[PlaySuper] User properties cleared");
+        }
+
+        /// <summary>
+        /// Get current user properties (for debugging)
+        /// </summary>
+        /// <returns>Copy of current user properties dictionary</returns>
+        public static Dictionary<string, object> GetUserProperties()
+        {
+            return MixPanelManager.GetUserProperties();
+        }
+
+        #endregion
+
         private static void HandlePreviousSessionClose()
         {
             if (
@@ -900,6 +948,260 @@ namespace PlaySuperUnity
         private static string _deviceId;
         private static string _advertisingId;
         private static string _advertisingIdSource;
+        private static Dictionary<string, object> _userProperties;
+        private static bool _userPropertiesLoaded = false;
+
+        #region User Properties Management
+
+        /// <summary>
+        /// Load user properties from PlayerPrefs (lazy loaded)
+        /// </summary>
+        private static void EnsureUserPropertiesLoaded()
+        {
+            if (_userPropertiesLoaded)
+                return;
+
+            _userProperties = new Dictionary<string, object>();
+            _userPropertiesLoaded = true;
+
+            if (PlayerPrefs.HasKey(Constants.userPropertiesKey))
+            {
+                try
+                {
+                    string json = PlayerPrefs.GetString(Constants.userPropertiesKey);
+                    if (!string.IsNullOrEmpty(json))
+                    {
+                        // Parse simple JSON object
+                        var parsed = ParseSimpleJsonObject(json);
+                        if (parsed != null)
+                        {
+                            _userProperties = parsed;
+                            Debug.Log($"[MixPanel] Loaded {_userProperties.Count} user properties from storage");
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"[MixPanel] Failed to load user properties: {e.Message}");
+                    _userProperties = new Dictionary<string, object>();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Save user properties to PlayerPrefs
+        /// </summary>
+        private static void SaveUserProperties()
+        {
+            try
+            {
+                string json = SerializeUserPropertiesToJson();
+                PlayerPrefs.SetString(Constants.userPropertiesKey, json);
+                PlayerPrefs.Save();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[MixPanel] Failed to save user properties: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Serialize user properties to JSON string for storage
+        /// </summary>
+        private static string SerializeUserPropertiesToJson()
+        {
+            if (_userProperties == null || _userProperties.Count == 0)
+                return "{}";
+
+            var pairs = new List<string>();
+            foreach (var kvp in _userProperties)
+            {
+                string jsonValue = ConvertValueToJson(kvp.Value);
+                pairs.Add($"\"{kvp.Key}\":{jsonValue}");
+            }
+            return "{" + string.Join(",", pairs) + "}";
+        }
+
+        /// <summary>
+        /// Parse a simple JSON object (supports string, number, bool)
+        /// </summary>
+        private static Dictionary<string, object> ParseSimpleJsonObject(string json)
+        {
+            var result = new Dictionary<string, object>();
+            if (string.IsNullOrEmpty(json) || json == "{}")
+                return result;
+
+            // Remove outer braces
+            json = json.Trim();
+            if (json.StartsWith("{")) json = json.Substring(1);
+            if (json.EndsWith("}")) json = json.Substring(0, json.Length - 1);
+
+            if (string.IsNullOrEmpty(json.Trim()))
+                return result;
+
+            // Simple parser for key:value pairs
+            int i = 0;
+            while (i < json.Length)
+            {
+                // Skip whitespace
+                while (i < json.Length && char.IsWhiteSpace(json[i])) i++;
+                if (i >= json.Length) break;
+
+                // Parse key (expect quoted string)
+                if (json[i] != '"') { i++; continue; }
+                i++; // skip opening quote
+                int keyStart = i;
+                while (i < json.Length && json[i] != '"') i++;
+                string key = json.Substring(keyStart, i - keyStart);
+                i++; // skip closing quote
+
+                // Skip to colon
+                while (i < json.Length && json[i] != ':') i++;
+                i++; // skip colon
+
+                // Skip whitespace
+                while (i < json.Length && char.IsWhiteSpace(json[i])) i++;
+
+                // Parse value
+                object value = null;
+                if (i < json.Length)
+                {
+                    if (json[i] == '"')
+                    {
+                        // String value
+                        i++;
+                        int valueStart = i;
+                        while (i < json.Length && json[i] != '"')
+                        {
+                            if (json[i] == '\\' && i + 1 < json.Length) i++; // skip escaped char
+                            i++;
+                        }
+                        value = json.Substring(valueStart, i - valueStart).Replace("\\\"", "\"").Replace("\\\\", "\\");
+                        i++; // skip closing quote
+                    }
+                    else if (json[i] == 't' || json[i] == 'f')
+                    {
+                        // Boolean
+                        if (json.Substring(i).StartsWith("true"))
+                        {
+                            value = true;
+                            i += 4;
+                        }
+                        else if (json.Substring(i).StartsWith("false"))
+                        {
+                            value = false;
+                            i += 5;
+                        }
+                    }
+                    else if (json[i] == 'n' && json.Substring(i).StartsWith("null"))
+                    {
+                        value = null;
+                        i += 4;
+                    }
+                    else if (char.IsDigit(json[i]) || json[i] == '-' || json[i] == '.')
+                    {
+                        // Number
+                        int numStart = i;
+                        while (i < json.Length && (char.IsDigit(json[i]) || json[i] == '.' || json[i] == '-' || json[i] == 'e' || json[i] == 'E' || json[i] == '+'))
+                            i++;
+                        string numStr = json.Substring(numStart, i - numStart);
+                        if (numStr.Contains("."))
+                        {
+                            if (double.TryParse(numStr, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double d))
+                                value = d;
+                        }
+                        else
+                        {
+                            if (int.TryParse(numStr, out int intVal))
+                                value = intVal;
+                            else if (long.TryParse(numStr, out long longVal))
+                                value = longVal;
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(key))
+                    result[key] = value;
+
+                // Skip to comma or end
+                while (i < json.Length && json[i] != ',' && json[i] != '}') i++;
+                if (i < json.Length && json[i] == ',') i++;
+            }
+
+            return result;
+        }
+
+        internal static void SetUserProperties(Dictionary<string, object> properties)
+        {
+            EnsureUserPropertiesLoaded();
+            foreach (var kvp in properties)
+            {
+                _userProperties[kvp.Key] = kvp.Value;
+            }
+            SaveUserProperties();
+        }
+
+        internal static void ClearUserProperties()
+        {
+            EnsureUserPropertiesLoaded();
+            _userProperties.Clear();
+            PlayerPrefs.DeleteKey(Constants.userPropertiesKey);
+            PlayerPrefs.Save();
+        }
+
+        internal static Dictionary<string, object> GetUserProperties()
+        {
+            EnsureUserPropertiesLoaded();
+            return new Dictionary<string, object>(_userProperties);
+        }
+
+        /// <summary>
+        /// Convert user properties to JSON property strings
+        /// </summary>
+        private static List<string> GetUserPropertiesAsJsonStrings()
+        {
+            EnsureUserPropertiesLoaded();
+            var result = new List<string>();
+            foreach (var kvp in _userProperties)
+            {
+                string jsonValue = ConvertValueToJson(kvp.Value);
+                if (jsonValue != null)
+                {
+                    result.Add($@"""user_{kvp.Key}"": {jsonValue}");
+                }
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Convert a value to its JSON representation
+        /// </summary>
+        private static string ConvertValueToJson(object value)
+        {
+            if (value == null)
+                return "null";
+
+            switch (value)
+            {
+                case string s:
+                    return $"\"{EscapeJsonString(s)}\"";
+                case bool b:
+                    return b ? "true" : "false";
+                case int i:
+                    return i.ToString();
+                case long l:
+                    return l.ToString();
+                case float f:
+                    return f.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                case double d:
+                    return d.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                default:
+                    // For other types, convert to string
+                    return $"\"{EscapeJsonString(value.ToString())}\"";
+            }
+        }
+
+        #endregion
 
         internal static string DeviceId
         {
@@ -1068,6 +1370,13 @@ namespace PlaySuperUnity
                     properties.Add($@"""$user_id"": ""{userId}""");
                 }
 
+                // Add user properties (set via SetUserProperties)
+                var userProps = GetUserPropertiesAsJsonStrings();
+                if (userProps.Count > 0)
+                {
+                    properties.AddRange(userProps);
+                }
+
                 // Create clean payload
                 var mixPanelPayload =
                     $@"{{
@@ -1126,6 +1435,7 @@ namespace PlaySuperUnity
             gameData = null;
             _deviceId = null;
             _advertisingId = null;
+            _userProperties.Clear();
 
             Debug.Log("[MixPanel] Manager disposed");
         }

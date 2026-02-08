@@ -21,6 +21,7 @@ namespace PlaySuperUnity
             "https://analytics.playsuper.club";
 
         internal const string deviceIdName = "device_id";
+        internal const string userPropertiesKey = "ps_user_properties";
 
         internal const string lastCloseTimestampName = "lastCloseTimestamp";
         internal const string lastCloseDoneName = "lastCloseDone";
