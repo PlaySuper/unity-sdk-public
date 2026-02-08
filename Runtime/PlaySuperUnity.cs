@@ -1016,10 +1016,21 @@ namespace PlaySuperUnity
                 // Build properties list
                 var properties = new List<string>
                 {
+                    // Core identifiers
                     $@"""$device_id"": ""{DeviceId}""",
                     $@"""time"": {actualEventTime}",
                     $@"""$insert_id"": ""{Guid.NewGuid()}""",
                     $@"""$ip"": ""{ipAddress}""",
+                    
+                    // App info
+                    $@"""app_version"": ""{Application.version}""",
+                    
+                    // Platform & Device
+                    $@"""platform"": ""{Application.platform}""",
+                    $@"""os_version"": ""{EscapeJsonString(SystemInfo.operatingSystem)}""",
+                    $@"""device_model"": ""{EscapeJsonString(SystemInfo.deviceModel)}""",
+                    
+                    // Game context
                     $@"""gameId"": ""{gameData.id}""",
                     $@"""gameName"": ""{gameData.name}""",
                     $@"""studioId"": ""{gameData.studioId}""",
@@ -1091,6 +1102,22 @@ namespace PlaySuperUnity
     }}
 }}";
             MixPanelEventQueue.EnqueueEvent(eventName, fallbackTime, fallbackPayload);
+        }
+
+        /// <summary>
+        /// Escape special characters for JSON string values
+        /// </summary>
+        private static string EscapeJsonString(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return "";
+
+            return input
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\n", "\\n")
+                .Replace("\r", "\\r")
+                .Replace("\t", "\\t");
         }
 
         internal static void Dispose()
