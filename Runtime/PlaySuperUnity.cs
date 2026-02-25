@@ -35,6 +35,32 @@ namespace PlaySuperUnity
         private static IFeatureFlags featureFlags;
         private static DateTime lastFlagsFetchedAt = DateTime.MinValue;
 
+        /// <summary>
+        /// Event fired when the store WebView is closed (by user or programmatically)
+        /// </summary>
+        public static event Action OnStoreClosed;
+
+        /// <summary>
+        /// Event fired when the store WebView is opened
+        /// </summary>
+        public static event Action OnStoreOpened;
+
+        /// <summary>
+        /// Internal method to invoke OnStoreClosed event from WebView
+        /// </summary>
+        internal static void NotifyStoreClosed()
+        {
+            OnStoreClosed?.Invoke();
+        }
+
+        /// <summary>
+        /// Internal method to invoke OnStoreOpened event from WebView
+        /// </summary>
+        internal static void NotifyStoreOpened()
+        {
+            OnStoreOpened?.Invoke();
+        }
+
         [System.Serializable]
         internal class PlayerIdentificationPayload
         {

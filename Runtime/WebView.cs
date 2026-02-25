@@ -163,6 +163,9 @@ namespace PlaySuperUnity
                     // Restore original orientation
                     Screen.orientation = originalOrientation;
 
+                    // Notify SDK subscribers
+                    PlaySuperUnitySDK.NotifyStoreClosed();
+
                     _ = Task.Run(async () =>
                     {
                         try
@@ -182,6 +185,9 @@ namespace PlaySuperUnity
                     break;
 
                 case GpmWebViewCallback.CallbackType.Open:
+                    // Notify SDK subscribers
+                    PlaySuperUnitySDK.NotifyStoreOpened();
+
                     // Also move this to background thread for consistency
                     _ = Task.Run(async () =>
                     {
@@ -239,6 +245,14 @@ namespace PlaySuperUnity
                         {
                             Debug.LogError($"Error processing token: {ex.Message}");
                         }
+                    }
+                    break;
+
+                case GpmWebViewCallback.CallbackType.Scheme:
+                    Debug.Log($"Custom scheme received: {data}");
+                    if (data.Contains("://close"))
+                    {
+                        GpmWebView.Close();
                     }
                     break;
             }
