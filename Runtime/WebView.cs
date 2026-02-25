@@ -34,16 +34,9 @@ namespace PlaySuperUnity
                 {
                     style = GpmWebViewStyle.FULLSCREEN,
                     orientation = GpmOrientation.PORTRAIT,
-#if UNITY_IOS
-                    isNavigationBarVisible = true,
-                    navigationBarColor = "#FFFFFF",
-                    title = "",
-                    isBackButtonVisible = false,
-                    isForwardButtonVisible = false,
-                    isCloseButtonVisible = true,
-                    contentMode = GpmWebViewContentMode.MOBILE,
-#else
                     isNavigationBarVisible = false,
+#if UNITY_IOS
+                    contentMode = GpmWebViewContentMode.MOBILE,
 #endif
                     supportMultipleWindows = true,
                 },
@@ -75,17 +68,10 @@ namespace PlaySuperUnity
                 {
                     style = GpmWebViewStyle.POPUP,
                     orientation = GpmOrientation.PORTRAIT,
+                    isNavigationBarVisible = false,
 #if UNITY_IOS
-                    isNavigationBarVisible = true,
-                    navigationBarColor = "#FFFFFF",
-                    title = "",
-                    isBackButtonVisible = false,
-                    isForwardButtonVisible = false,
-                    isCloseButtonVisible = true,
                     contentMode = GpmWebViewContentMode.MOBILE,
                     isMaskViewVisible = true,
-#else
-                    isNavigationBarVisible = false,
 #endif
                     supportMultipleWindows = true,
                 },
@@ -118,17 +104,10 @@ namespace PlaySuperUnity
                 {
                     style = GpmWebViewStyle.POPUP,
                     orientation = GpmOrientation.PORTRAIT,
+                    isNavigationBarVisible = false,
 #if UNITY_IOS
-                    isNavigationBarVisible = true,
-                    navigationBarColor = "#FFFFFF",
-                    title = "",
-                    isBackButtonVisible = false,
-                    isForwardButtonVisible = false,
-                    isCloseButtonVisible = true,
                     contentMode = GpmWebViewContentMode.MOBILE,
                     isMaskViewVisible = true,
-#else
-                    isNavigationBarVisible = false,
 #endif
                     position = new GpmWebViewRequest.Position
                     {
@@ -211,6 +190,14 @@ namespace PlaySuperUnity
                     GpmWebView.ExecuteJavaScript("localStorage.getItem('authToken');");
 
                     Debug.Log($"Page started: {data}");
+
+                    // Check for malformed close scheme (iOS appends to URL instead of triggering scheme)
+                    if (data.Contains("USER_CUSTOM_SCHEME://close") || data.Contains("USER_CUSTOM_SCHEME:/close"))
+                    {
+                        Debug.Log("Detected malformed close scheme in URL - closing WebView");
+                        GpmWebView.Close();
+                        break;
+                    }
 
                     // More reliable URL check
                     if (data.Contains("store.playsuper.club"))
