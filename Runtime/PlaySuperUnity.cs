@@ -697,6 +697,23 @@ namespace PlaySuperUnity
             }
         }
 
+        /// <summary>
+        /// Fetch a curated list by type and name
+        /// </summary>
+        /// <param name="type">Type of curated list (Products or Rewards)</param>
+        /// <param name="listName">Name of the curated list (e.g., "homepage_featured", "daily_deals")</param>
+        /// <param name="coinId">Coin ID for pricing calculations</param>
+        /// <param name="version">Optional API version for rewards (e.g., "2.0.0" for enhanced response)</param>
+        /// <returns>CuratedListResponse containing products or rewards based on type</returns>
+        public async Task<CuratedListResponse> GetCuratedList(
+            CuratedListType type,
+            string listName,
+            string coinId,
+            string version = null)
+        {
+            return await CuratedListService.GetCuratedListAsync(type, listName, coinId, apiKey, baseUrl, version);
+        }
+
         public static bool IsLoggedIn()
         {
             return !string.IsNullOrEmpty(authToken) && profile != null;
