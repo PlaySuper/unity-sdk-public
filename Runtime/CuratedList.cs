@@ -72,6 +72,12 @@ namespace PlaySuperUnity
         public string sourceId;
         public string pluginName;
         public string name;
+
+        /// <summary>
+        /// Call-to-action URL for this product in the PlaySuper store
+        /// </summary>
+        [JsonIgnore]
+        public string ctaUrl;
         public string description;
         public string plainTextDescription;
         public string brandName;
@@ -194,6 +200,12 @@ namespace PlaySuperUnity
         public string id;
         public string brandId;
         public string brandName;
+
+        /// <summary>
+        /// Call-to-action URL for this reward in the PlaySuper store
+        /// </summary>
+        [JsonIgnore]
+        public string ctaUrl;
         public string organizationId;
         public RewardMetadataFull metadata;
         public RewardInventory inventory;
@@ -312,16 +324,33 @@ namespace PlaySuperUnity
 
                 var result = new CuratedListResponse { type = type };
 
+                // Determine store URL based on environment
+                string storeUrl = baseUrl == Constants.devApiUrl ? Constants.devStoreUrl : Constants.prodStoreUrl;
+
                 if (type == CuratedListType.Products)
                 {
                     var productsResponse = JsonConvert.DeserializeObject<CuratedProductsResponse>(json);
                     result.products = productsResponse?.data?.products ?? new List<CuratedProduct>();
+
+                    // Populate CTA URLs for each product
+                    foreach (var product in result.products)
+                    {
+                        product.ctaUrl = $"{storeUrl}gcommerce/products/{product.id}";
+                    }
+
                     Debug.Log($"[PlaySuper] Parsed {result.products.Count} products");
                 }
                 else
                 {
                     var rewardsResponse = JsonConvert.DeserializeObject<CuratedRewardsResponse>(json);
                     result.rewards = rewardsResponse?.data?.rewards ?? new List<CuratedReward>();
+
+                    // Populate CTA URLs for each reward
+                    foreach (var reward in result.rewards)
+                    {
+                        reward.ctaUrl = $"{storeUrl}rewards/{reward.id}";
+                    }
+
                     Debug.Log($"[PlaySuper] Parsed {result.rewards.Count} rewards");
                 }
 
