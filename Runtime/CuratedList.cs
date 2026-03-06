@@ -18,47 +18,59 @@ namespace PlaySuperUnity
 
     #region Response Classes
 
+    /// <summary>
+    /// Base API response wrapper
+    /// </summary>
+    [Serializable]
+    public class ApiResponseWrapper<T>
+    {
+        public T data;
+        public int statusCode;
+        public string message;
+        public string requestId;
+        public string timestamp;
+    }
+
+    /// <summary>
+    /// Data container for curated products
+    /// </summary>
     [Serializable]
     public class CuratedProductsData
     {
-        public List<ProductListingStore> products;
+        public List<CuratedProduct> products;
     }
 
-    [Serializable]
-    public class CuratedProductsResponse
-    {
-        public CuratedProductsData data;
-        public int statusCode;
-        public string message;
-        public string requestId;
-        public string timestamp;
-    }
-
+    /// <summary>
+    /// Data container for curated rewards
+    /// </summary>
     [Serializable]
     public class CuratedRewardsData
     {
-        public List<AvailableReward> rewards;
+        public List<CuratedReward> rewards;
     }
 
+    /// <summary>
+    /// Response for curated products endpoint
+    /// </summary>
     [Serializable]
-    public class CuratedRewardsResponse
-    {
-        public CuratedRewardsData data;
-        public int statusCode;
-        public string message;
-        public string requestId;
-        public string timestamp;
-    }
+    public class CuratedProductsResponse : ApiResponseWrapper<CuratedProductsData> { }
+
+    /// <summary>
+    /// Response for curated rewards endpoint
+    /// </summary>
+    [Serializable]
+    public class CuratedRewardsResponse : ApiResponseWrapper<CuratedRewardsData> { }
 
     #endregion
 
     #region Product Classes
 
     [Serializable]
-    public class ProductListingStore
+    public class CuratedProduct
     {
         public string id;
         public string sourceId;
+        public string pluginName;
         public string name;
         public string description;
         public string plainTextDescription;
@@ -69,13 +81,48 @@ namespace PlaySuperUnity
         public string categoryId;
         public string sourceCategory;
         public string sourceSubCategory;
+        public List<ProductSpecification> specifications;
         public string createdAt;
         public string updatedAt;
         public string lastSyncedAt;
         public float? rating;
-        public Inventory inventory;
+        public ProductInventory inventory;
         public bool hasException;
         public List<SkuStore> skus;
+        public List<OptionType> optionTypes;
+    }
+
+    [Serializable]
+    public class ProductSpecification
+    {
+        public string group;
+        public string label;
+        public string value;
+        public bool isHighlight;
+    }
+
+    [Serializable]
+    public class OptionType
+    {
+        public string id;
+        public string name;
+        public string slug;
+        public string displayName;
+        public string inputType;
+        public int displayOrder;
+        public bool isRequired;
+        public List<OptionValue> values;
+    }
+
+    [Serializable]
+    public class OptionValue
+    {
+        public string id;
+        public string value;
+        public string label;
+        public string colorCode;
+        public string imageUrl;
+        public int displayOrder;
     }
 
     [Serializable]
@@ -85,7 +132,7 @@ namespace PlaySuperUnity
         public string name;
         public string barcode;
         public string imageUrl;
-        public Inventory inventory;
+        public SkuInventory inventory;
         public string createdAt;
         public string updatedAt;
         public bool isActive;
@@ -93,26 +140,48 @@ namespace PlaySuperUnity
         public float? competitorPrice;
         public string competitorPlatform;
         public PlaySuperPriceStore playSuperPrice;
+        public List<SkuOptionValue> optionValues;
+    }
+
+    [Serializable]
+    public class SkuOptionValue
+    {
+        public string optionTypeId;
+        public string optionTypeName;
+        public string optionTypeSlug;
+        public string optionValueId;
+        public string value;
+        public string label;
+        public string colorCode;
+        public string imageUrl;
     }
 
     [Serializable]
     public class PlaySuperPriceStore
     {
-        public float listingPrice;
-        public float discountedListingPrice;
-        public float discountPercent;
-        public float marginPercent;
-        public float discountValue;
-        public float marginValue;
-        public float coinSpread;
-        public float? supplierPrice;
-        public float? coinRequiredForDiscount;
+        public string listingPrice;
+        public string discountedListingPrice;
+        public string discountPercent;
+        public string marginPercent;
+        public string discountValue;
+        public string marginValue;
+        public string coinSpread;
+        public string supplierPrice;
+        public string mrp;
+        public int? coinRequiredForDiscount;
+        public int? coinsRequiredForMaxDiscount;
     }
 
     [Serializable]
-    public class Inventory
+    public class ProductInventory
     {
         public string totalQuantity;
+    }
+
+    [Serializable]
+    public class SkuInventory
+    {
+        public string quantity;
     }
 
     #endregion
@@ -120,23 +189,48 @@ namespace PlaySuperUnity
     #region Reward Classes
 
     [Serializable]
-    public class AvailableReward
+    public class CuratedReward
     {
         public string id;
-        public string name;
-        public string description;
-        public string startDate;
-        public string endDate;
-        public float price;
-        public int availableQuantity;
         public string brandId;
         public string brandName;
         public string organizationId;
-        public string brandRedirectionLink;
-        public RewardMetadata metadata;
+        public RewardMetadataFull metadata;
+        public RewardInventory inventory;
+        public List<RewardPrice> price;
     }
 
-    // RewardMetadata is already defined in Touchpoint.cs
+    [Serializable]
+    public class RewardMetadataFull
+    {
+        public List<string> brandCategory;
+        public string brandLogoImage;
+        public string brandName;
+        public Dictionary<string, object> campaignAssets;
+        public string campaignCoverImage;
+        public string campaignExpiryDate;
+        public string campaignSubTitle;
+        public string campaignTitle;
+        public string couponExpiryDate;
+        public bool couponExpiryDateExists;
+        public string howToRedeem;
+        public string termsAndConditions;
+        public string type;
+    }
+
+    [Serializable]
+    public class RewardInventory
+    {
+        public int availableQuantity;
+        public string type;
+    }
+
+    [Serializable]
+    public class RewardPrice
+    {
+        public float amount;
+        public string coinId;
+    }
 
     #endregion
 
@@ -149,8 +243,8 @@ namespace PlaySuperUnity
     public class CuratedListResponse
     {
         public CuratedListType type;
-        public List<ProductListingStore> products;
-        public List<AvailableReward> rewards;
+        public List<CuratedProduct> products;
+        public List<CuratedReward> rewards;
     }
 
     #endregion
@@ -221,13 +315,13 @@ namespace PlaySuperUnity
                 if (type == CuratedListType.Products)
                 {
                     var productsResponse = JsonConvert.DeserializeObject<CuratedProductsResponse>(json);
-                    result.products = productsResponse?.data?.products ?? new List<ProductListingStore>();
+                    result.products = productsResponse?.data?.products ?? new List<CuratedProduct>();
                     Debug.Log($"[PlaySuper] Parsed {result.products.Count} products");
                 }
                 else
                 {
                     var rewardsResponse = JsonConvert.DeserializeObject<CuratedRewardsResponse>(json);
-                    result.rewards = rewardsResponse?.data?.rewards ?? new List<AvailableReward>();
+                    result.rewards = rewardsResponse?.data?.rewards ?? new List<CuratedReward>();
                     Debug.Log($"[PlaySuper] Parsed {result.rewards.Count} rewards");
                 }
 
