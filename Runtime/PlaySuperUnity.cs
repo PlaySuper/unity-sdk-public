@@ -47,10 +47,17 @@ namespace PlaySuperUnity
 
         /// <summary>
         /// Internal method to invoke OnStoreClosed event from WebView
+        /// Also fetches any new SDK transactions that occurred during the store session
         /// </summary>
         internal static void NotifyStoreClosed()
         {
             OnStoreClosed?.Invoke();
+
+            // Fetch SDK transactions after store closes (purchases may have happened)
+            if (IsLoggedIn() && SdkTransactionSyncManager.HasVisitedStore())
+            {
+                _ = FetchSdkTransactionsAfterAuth();
+            }
         }
 
         /// <summary>
@@ -153,9 +160,11 @@ namespace PlaySuperUnity
                 hasTrackingPermission = false; // Always start as false - game dev must explicitly enable
 
                 // Load persisted auth token if available
+                bool hadExistingToken = false;
                 if (PlayerPrefs.HasKey("authToken"))
                 {
                     authToken = PlayerPrefs.GetString("authToken");
+                    hadExistingToken = !string.IsNullOrEmpty(authToken);
                 }
 
                 // Create SDK GameObject
@@ -171,6 +180,12 @@ namespace PlaySuperUnity
 
                 // Start flag fetching after core SDK is ready
                 _ = FetchFlagsInitialAndSchedule();
+
+                // If user was previously authenticated, fetch SDK transactions
+                if (hadExistingToken)
+                {
+                    _ = FetchSdkTransactionsAfterAuth();
+                }
             }
 
             // Handle previous session close event
@@ -533,9 +548,82 @@ namespace PlaySuperUnity
             {
                 Debug.LogWarning("[PlaySuper] Opening store without valid auth token - user may need to login");
             }
+            else
+            {
+                // Mark store as visited on the server and locally (fire and forget)
+                _ = MarkStoreVisitedAsync();
+            }
 
             Debug.Log("[PlaySuper] OpenStore: opening store");
             WebView.ShowUrlFullScreen(isDev, url, utmContent);
+        }
+
+        /// <summary>
+        /// Mark the store as visited on the server (enables SDK transaction syncing)
+        /// Called automatically when OpenStore() is invoked while logged in.
+        /// </summary>
+        private static async Task MarkStoreVisitedAsync()
+        {
+            // Check local cache first - skip API call if already visited
+            if (SdkTransactionSyncManager.HasVisitedStore())
+            {
+                Debug.Log("[PlaySuper] Store already marked as visited (local cache)");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(authToken))
+            {
+                Debug.LogWarning("[PlaySuper] Cannot mark store visited - user not authenticated");
+                return;
+            }
+
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Accept.Clear();
+                    client.DefaultRequestHeaders.Accept.Add(
+                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
+                    );
+                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
+
+                    StringContent content = new StringContent("{}", Encoding.UTF8, "application/json");
+
+                    HttpResponseMessage response = await client.PostAsync(
+                        $"{baseUrl}/player/mark-store-visited",
+                        content
+                    );
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string responseJson = await response.Content.ReadAsStringAsync();
+                        MarkStoreVisitedResponse data = JsonUtility.FromJson<MarkStoreVisitedResponse>(responseJson);
+
+                        if (data != null && data.success)
+                        {
+                            // Update local cache
+                            SdkTransactionSyncManager.SetHasVisitedStore(true);
+                            Debug.Log($"[PlaySuper] Store marked as visited (alreadyVisited: {data.alreadyVisited})");
+
+                            // If this is the first visit, fetch transactions in background
+                            if (!data.alreadyVisited)
+                            {
+                                _ = FetchSdkTransactionsAfterAuth();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[PlaySuper] Failed to mark store visited: {response.StatusCode}");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PlaySuper] Error marking store visited: {e.Message}");
+                // Non-blocking - don't fail store open due to this
+            }
         }
 
         public static bool ValidateToken(string token)
@@ -580,6 +668,31 @@ namespace PlaySuperUnity
                     await DistributeCoins(kvp.Key, kvp.Value);
                 }
                 TransactionsManager.ClearTransactions();
+            }
+
+            // Fetch SDK transactions (purchase debits, refund credits) after authentication
+            // This allows games to sync transaction state on login
+            _ = FetchSdkTransactionsAfterAuth();
+        }
+
+        /// <summary>
+        /// Internal method to fetch SDK transactions after authentication.
+        /// Runs in background and fires OnSdkTransactionsReceived event if transactions exist.
+        /// </summary>
+        private static async Task FetchSdkTransactionsAfterAuth()
+        {
+            try
+            {
+                var transactions = await FetchSdkTransactions();
+                if (transactions != null && transactions.Count > 0)
+                {
+                    Debug.Log($"[PlaySuper] {transactions.Count} SDK transactions available for processing after auth");
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PlaySuper] Failed to fetch SDK transactions after auth: {e.Message}");
+                // Non-blocking - don't fail auth flow due to transaction sync issues
             }
         }
 
@@ -984,6 +1097,227 @@ namespace PlaySuperUnity
             ApplyFlags(flags);
             Debug.Log("[PlaySuper][Flags] Initial flag fetch completed");
         }
+
+        #region SDK Transaction Sync
+
+        /// <summary>
+        /// Event fired when new SDK transactions are available for the game to process.
+        /// The game should handle these transactions (e.g., update local currency, show notifications)
+        /// and then call CommitSdkTransactions() to mark them as processed.
+        /// </summary>
+        public static event Action<List<SdkTransaction>> OnSdkTransactionsReceived;
+
+        /// <summary>
+        /// Fetch SDK transactions (purchase debits and refund credits) from the server.
+        /// Requires authenticated user and that the player has visited the store.
+        /// Automatically stores transactions locally and fires OnSdkTransactionsReceived.
+        /// </summary>
+        /// <returns>List of transactions that need processing, or null on error/not eligible</returns>
+        public static async Task<List<SdkTransaction>> FetchSdkTransactions()
+        {
+            if (string.IsNullOrEmpty(authToken))
+            {
+                Debug.LogWarning("[PlaySuper] Cannot fetch SDK transactions - user not authenticated");
+                return null;
+            }
+
+            // Check local cache - skip API call if player hasn't visited store
+            if (!SdkTransactionSyncManager.HasVisitedStore())
+            {
+                Debug.Log("[PlaySuper] Skipping SDK transaction fetch - player hasn't visited store yet");
+                return new List<SdkTransaction>();
+            }
+
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Accept.Clear();
+                    client.DefaultRequestHeaders.Accept.Add(
+                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
+                    );
+                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
+
+                    HttpResponseMessage response = await client.GetAsync($"{baseUrl}/player/sdk-transactions");
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string json = await response.Content.ReadAsStringAsync();
+                        SdkTransactionsResponse data = JsonUtility.FromJson<SdkTransactionsResponse>(json);
+
+                        // Update local store visit flag based on server state
+                        if (data != null)
+                        {
+                            SdkTransactionSyncManager.SetHasVisitedStore(data.hasVisitedStore);
+                        }
+
+                        if (data != null && data.transactions != null && data.transactions.Count > 0)
+                        {
+                            // Store transactions locally for persistence
+                            SdkTransactionSyncManager.AddPendingTransactions(data.transactions);
+
+                            Debug.Log($"[PlaySuper] Fetched {data.transactions.Count} SDK transactions");
+
+                            // Fire event for game to handle
+                            OnSdkTransactionsReceived?.Invoke(data.transactions);
+
+                            return data.transactions;
+                        }
+                        else
+                        {
+                            Debug.Log("[PlaySuper] No new SDK transactions to sync");
+                            return new List<SdkTransaction>();
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogError($"[PlaySuper] Error fetching SDK transactions: {response.StatusCode}");
+                        return null;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[PlaySuper] Exception fetching SDK transactions: {e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get pending SDK transactions from local storage.
+        /// Use this to retrieve transactions that were fetched but not yet committed.
+        /// </summary>
+        /// <returns>List of pending transactions</returns>
+        public static List<SdkTransaction> GetPendingSdkTransactions()
+        {
+            return SdkTransactionSyncManager.GetPendingTransactions();
+        }
+
+        /// <summary>
+        /// Check if there are pending SDK transactions to process.
+        /// </summary>
+        /// <returns>True if there are unprocessed transactions</returns>
+        public static bool HasPendingSdkTransactions()
+        {
+            return SdkTransactionSyncManager.HasPendingTransactions();
+        }
+
+        /// <summary>
+        /// Check if the player has visited the PlaySuper store (from local cache).
+        /// SDK transaction syncing is only enabled for players who have opened the store at least once.
+        /// </summary>
+        /// <returns>True if player has visited the store</returns>
+        public static bool HasVisitedStore()
+        {
+            return SdkTransactionSyncManager.HasVisitedStore();
+        }
+
+        /// <summary>
+        /// Commit SDK transactions after the game has processed them.
+        /// This marks transactions as synced on the server and removes them from local storage.
+        /// Call this after your game has successfully handled the transactions (e.g., updated local currency).
+        /// </summary>
+        /// <param name="lastProcessedTransactionId">The ID of the last transaction that was processed</param>
+        /// <returns>True if commit was successful</returns>
+        public static async Task<bool> CommitSdkTransactions(string lastProcessedTransactionId)
+        {
+            if (string.IsNullOrEmpty(authToken))
+            {
+                Debug.LogWarning("[PlaySuper] Cannot commit SDK transactions - user not authenticated");
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(lastProcessedTransactionId))
+            {
+                Debug.LogWarning("[PlaySuper] Cannot commit SDK transactions - no transaction ID provided");
+                return false;
+            }
+
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Accept.Clear();
+                    client.DefaultRequestHeaders.Accept.Add(
+                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
+                    );
+                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
+
+                    CommitSdkSyncRequest requestBody = new CommitSdkSyncRequest(lastProcessedTransactionId);
+                    string jsonBody = JsonUtility.ToJson(requestBody);
+                    StringContent content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+                    HttpResponseMessage response = await client.PostAsync(
+                        $"{baseUrl}/player/sdk-transactions/commit",
+                        content
+                    );
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string responseJson = await response.Content.ReadAsStringAsync();
+                        CommitSdkSyncResponse data = JsonUtility.FromJson<CommitSdkSyncResponse>(responseJson);
+
+                        if (data != null && data.success)
+                        {
+                            // Update local storage - remove processed transactions
+                            SdkTransactionSyncManager.RemoveProcessedTransactions(lastProcessedTransactionId);
+                            SdkTransactionSyncManager.SetLastSyncedCheckpoint(data.newCheckpoint);
+
+                            Debug.Log($"[PlaySuper] Successfully committed SDK transactions up to {lastProcessedTransactionId}");
+                            return true;
+                        }
+                        else
+                        {
+                            Debug.LogError("[PlaySuper] Server returned unsuccessful commit response");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        string errorBody = await response.Content.ReadAsStringAsync();
+                        Debug.LogError($"[PlaySuper] Error committing SDK transactions: {response.StatusCode} - {errorBody}");
+                        return false;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[PlaySuper] Exception committing SDK transactions: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Convenience method to commit all pending transactions.
+        /// Gets the last transaction from pending list and commits up to that point.
+        /// </summary>
+        /// <returns>True if commit was successful, false if failed or no pending transactions</returns>
+        public static async Task<bool> CommitAllPendingSdkTransactions()
+        {
+            List<SdkTransaction> pending = SdkTransactionSyncManager.GetPendingTransactions();
+            if (pending == null || pending.Count == 0)
+            {
+                Debug.Log("[PlaySuper] No pending SDK transactions to commit");
+                return true; // Nothing to commit is considered success
+            }
+
+            // Get the last transaction ID
+            string lastTransactionId = pending[pending.Count - 1].id;
+            return await CommitSdkTransactions(lastTransactionId);
+        }
+
+        /// <summary>
+        /// Clear all SDK transaction sync state. Call this on logout.
+        /// </summary>
+        public static void ClearSdkTransactionSyncState()
+        {
+            SdkTransactionSyncManager.ClearAll();
+            Debug.Log("[PlaySuper] SDK transaction sync state cleared");
+        }
+
+        #endregion
     }
 
     internal class MixPanelManager
