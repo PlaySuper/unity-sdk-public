@@ -241,6 +241,10 @@ namespace PlaySuperUnity
                     {
                         GpmWebView.Close();
                     }
+                    else if (data.Contains("://transaction"))
+                    {
+                        PlaySuperUnitySDK.HandleRealtimeTransaction();
+                    }
                     break;
             }
         }

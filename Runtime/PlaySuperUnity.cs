@@ -1108,6 +1108,16 @@ namespace PlaySuperUnity
         public static event Action<List<SdkTransaction>> OnSdkTransactionsReceived;
 
         /// <summary>
+        /// Handles a realtime transaction notification from the WebView.
+        /// Fetches the actual transaction data from the server and fires OnSdkTransactionsReceived.
+        /// </summary>
+        internal static void HandleRealtimeTransaction()
+        {
+            Debug.Log("[PlaySuper] Realtime transaction notification received from store");
+            _ = FetchSdkTransactionsAfterAuth();
+        }
+
+        /// <summary>
         /// Fetch SDK transactions (purchase debits and refund credits) from the server.
         /// Requires authenticated user and that the player has visited the store.
         /// Automatically stores transactions locally and fires OnSdkTransactionsReceived.
