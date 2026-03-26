@@ -10,6 +10,8 @@ namespace PlaySuperUnity
     internal class WebView
     {
         private static ScreenOrientation originalOrientation;
+        private static bool isPollingTransactions = false;
+        private static Coroutine pollingCoroutine;
 
         public static void ShowUrlFullScreen(bool isDev = false, string url = null, string utmContent = null)
         {
@@ -139,6 +141,9 @@ namespace PlaySuperUnity
             switch (callbackType)
             {
                 case GpmWebViewCallback.CallbackType.Close:
+                    // Stop polling for transaction signals
+                    StopTransactionPolling();
+
                     // Restore original orientation
                     Screen.orientation = originalOrientation;
 
@@ -166,6 +171,9 @@ namespace PlaySuperUnity
                 case GpmWebViewCallback.CallbackType.Open:
                     // Notify SDK subscribers
                     PlaySuperUnitySDK.NotifyStoreOpened();
+
+                    // Start polling for transaction signals from the store
+                    StartTransactionPolling();
 
                     // Also move this to background thread for consistency
                     _ = Task.Run(async () =>
@@ -199,13 +207,6 @@ namespace PlaySuperUnity
                         break;
                     }
 
-                    if (data.Contains("USER_CUSTOM_SCHEME://transaction") || data.Contains("USER_CUSTOM_SCHEME:/transaction"))
-                    {
-                        Debug.Log("Detected malformed transaction scheme in URL - handling realtime transaction");
-                        PlaySuperUnitySDK.HandleRealtimeTransaction();
-                        break;
-                    }
-
                     // More reliable URL check
                     if (data.Contains("store.playsuper.club"))
                     {
@@ -220,6 +221,14 @@ namespace PlaySuperUnity
                     Debug.Log("ExecuteJavascript: " + data);
                     if (string.IsNullOrEmpty(data) == false && data.Length > 2 && data != "null")
                     {
+                        // Check if this is a transaction signal from polling
+                        if (data.Contains("PS_TXN:"))
+                        {
+                            Debug.Log("[PlaySuper] Transaction signal detected via polling");
+                            PlaySuperUnitySDK.HandleRealtimeTransaction();
+                            break;
+                        }
+
                         try
                         {
                             // Extract the token
@@ -248,11 +257,58 @@ namespace PlaySuperUnity
                     {
                         GpmWebView.Close();
                     }
-                    else if (data.Contains("://transaction"))
-                    {
-                        PlaySuperUnitySDK.HandleRealtimeTransaction();
-                    }
                     break;
+            }
+        }
+
+        private static void StartTransactionPolling()
+        {
+            if (isPollingTransactions) return;
+
+            if (!PlaySuperUnitySDK.IsLoggedIn() || !SdkTransactionSyncManager.HasVisitedStore())
+            {
+                Debug.Log($"[PlaySuper] Skipping transaction polling (loggedIn={PlaySuperUnitySDK.IsLoggedIn()}, visitedStore={SdkTransactionSyncManager.HasVisitedStore()})");
+                return;
+            }
+
+            isPollingTransactions = true;
+
+            if (PlaySuperUnitySDK.Instance != null)
+            {
+                pollingCoroutine = PlaySuperUnitySDK.Instance.StartCoroutine(PollTransactionSignal());
+            }
+            Debug.Log("[PlaySuper] Transaction polling started");
+        }
+
+        private static void StopTransactionPolling()
+        {
+            isPollingTransactions = false;
+            if (pollingCoroutine != null && PlaySuperUnitySDK.Instance != null)
+            {
+                PlaySuperUnitySDK.Instance.StopCoroutine(pollingCoroutine);
+                pollingCoroutine = null;
+            }
+            Debug.Log("[PlaySuper] Transaction polling stopped");
+        }
+
+        private static IEnumerator PollTransactionSignal()
+        {
+            while (isPollingTransactions)
+            {
+                // Read and clear the signal in one atomic JS call.
+                // Returns "PS_TXN:<timestamp>" if signal exists, otherwise null.
+                GpmWebView.ExecuteJavaScript(@"
+                    (function() {
+                        var s = localStorage.getItem('psTransactionSignal');
+                        if (s) {
+                            localStorage.removeItem('psTransactionSignal');
+                            return 'PS_TXN:' + s;
+                        }
+                        return null;
+                    })()
+                ");
+
+                yield return new WaitForSeconds(1f);
             }
         }
 
