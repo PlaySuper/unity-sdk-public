@@ -8,9 +8,9 @@ namespace PlaySuperUnity
         private const string saveKey = "transactions";
         public static List<Transaction> transactionList = new List<Transaction>();
 
-        public static void AddTransaction(string coinId, int amount)
+        public static void AddTransaction(string coinId, int amount, string type = "distribute")
         {
-            Transaction t = new Transaction(coinId, amount);
+            Transaction t = new Transaction(coinId, amount, type);
             transactionList.Add(t);
             SaveTransactions();
         }
@@ -63,11 +63,13 @@ namespace PlaySuperUnity
     {
         public string coinId;
         public int amount;
+        public string type;
 
-        public Transaction(string _coinId, int _amount)
+        public Transaction(string _coinId, int _amount, string _type = "distribute")
         {
             this.coinId = _coinId;
             this.amount = _amount;
+            this.type = _type;
         }
     }
 }

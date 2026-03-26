@@ -382,6 +382,54 @@ namespace PlaySuperUnity
             }
         }
 
+        public async Task DeductCoins(string coinId, int amount)
+        {
+            if (authToken == null)
+            {
+                TransactionsManager.AddTransaction(coinId, amount, "deduct");
+                Debug.Log("Deduction stored locally (no auth token)");
+                return;
+            }
+
+            try
+            {
+                var client = new HttpClient();
+                var jsonPayload = $@"{{""amount"": {amount}}}";
+                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                var url = $"{baseUrl}/coins/{coinId}/deduct";
+
+                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
+                request.Headers.Accept.Clear();
+                request.Headers.Accept.Add(
+                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*")
+                );
+                request.Headers.Add("x-api-key", apiKey);
+                request.Headers.Add("Authorization", $"Bearer {authToken}");
+
+                var response = await client.SendAsync(request);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    Debug.Log("Coins deducted successfully: " + responseContent);
+                }
+                else
+                {
+                    Debug.LogError($"Error from DeductCoins: {response.StatusCode}");
+                    // IMPORTANT: Store locally on server error
+                    TransactionsManager.AddTransaction(coinId, amount, "deduct");
+                    Debug.Log("Deduction stored locally due to server error");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Network error in DeductCoins: {ex.Message}");
+                // IMPORTANT: Store locally on network error
+                TransactionsManager.AddTransaction(coinId, amount, "deduct");
+                Debug.Log("Deduction stored locally due to network error");
+            }
+        }
+
         public async Task<CreatePlayerResponse> CreatePlayerWithUuid(string uuid)
         {
             if (string.IsNullOrWhiteSpace(uuid))
@@ -650,22 +698,29 @@ namespace PlaySuperUnity
             if (TransactionsManager.HasTransactions())
             {
                 List<Transaction> transactions = TransactionsManager.GetTransactions();
-                Dictionary<string, int> coinMap = new Dictionary<string, int>();
+                Dictionary<string, int> distributeCoinMap = new Dictionary<string, int>();
+                Dictionary<string, int> deductCoinMap = new Dictionary<string, int>();
                 foreach (Transaction t in transactions)
                 {
-                    if (coinMap.ContainsKey(t.coinId))
+                    var targetMap = t.type == "deduct" ? deductCoinMap : distributeCoinMap;
+                    if (targetMap.ContainsKey(t.coinId))
                     {
-                        coinMap[t.coinId] += t.amount;
+                        targetMap[t.coinId] += t.amount;
                     }
                     else
                     {
-                        coinMap.Add(t.coinId, t.amount);
+                        targetMap.Add(t.coinId, t.amount);
                     }
                 }
-                foreach (KeyValuePair<string, int> kvp in coinMap)
+                foreach (KeyValuePair<string, int> kvp in distributeCoinMap)
                 {
                     Debug.Log("Distributing coins: " + kvp.Value + " of " + kvp.Key);
                     await DistributeCoins(kvp.Key, kvp.Value);
+                }
+                foreach (KeyValuePair<string, int> kvp in deductCoinMap)
+                {
+                    Debug.Log("Deducting coins: " + kvp.Value + " of " + kvp.Key);
+                    await DeductCoins(kvp.Key, kvp.Value);
                 }
                 TransactionsManager.ClearTransactions();
             }
