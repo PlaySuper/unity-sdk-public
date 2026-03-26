@@ -203,7 +203,7 @@ namespace PlaySuperUnity
                     if (data.Contains("store.playsuper.club"))
                     {
                         string js =
-                            $"localStorage.setItem('apiKey', '{PlaySuperUnitySDK.GetApiKey()}')";
+                            $"localStorage.setItem('apiKey', '{PlaySuperUnitySDK.GetApiKey()}'); localStorage.setItem('isUnityWebView', 'true');";
                         GpmWebView.ExecuteJavaScript(js);
                         Debug.Log("Store URL detected - Injecting credentials");
                         InjectCredentials();
