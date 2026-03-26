@@ -21,10 +21,10 @@ namespace PlaySuperUnity
     }
 
     /// <summary>
-    /// Response from GET /player/sdk-transactions
+    /// Inner data from GET /player/sdk-transactions
     /// </summary>
     [System.Serializable]
-    internal class SdkTransactionsResponse
+    internal class SdkTransactionsData
     {
         public List<SdkTransaction> transactions;
         public string lastSyncedTransactionId;
@@ -32,13 +32,31 @@ namespace PlaySuperUnity
     }
 
     /// <summary>
-    /// Response from POST /player/mark-store-visited
+    /// Response wrapper from GET /player/sdk-transactions
+    /// </summary>
+    [System.Serializable]
+    internal class SdkTransactionsResponse
+    {
+        public SdkTransactionsData data;
+    }
+
+    /// <summary>
+    /// Inner data from POST /player/mark-store-visited
+    /// </summary>
+    [System.Serializable]
+    internal class MarkStoreVisitedData
+    {
+        public bool success;
+        public bool alreadyVisited;
+    }
+
+    /// <summary>
+    /// Response wrapper from POST /player/mark-store-visited
     /// </summary>
     [System.Serializable]
     internal class MarkStoreVisitedResponse
     {
-        public bool success;
-        public bool alreadyVisited;
+        public MarkStoreVisitedData data;
     }
 
     /// <summary>
@@ -56,13 +74,22 @@ namespace PlaySuperUnity
     }
 
     /// <summary>
-    /// Response from POST /player/sdk-transactions/commit
+    /// Inner data from POST /player/sdk-transactions/commit
+    /// </summary>
+    [System.Serializable]
+    internal class CommitSdkSyncData
+    {
+        public bool success;
+        public string newCheckpoint;
+    }
+
+    /// <summary>
+    /// Response wrapper from POST /player/sdk-transactions/commit
     /// </summary>
     [System.Serializable]
     internal class CommitSdkSyncResponse
     {
-        public bool success;
-        public string newCheckpoint;
+        public CommitSdkSyncData data;
     }
 
     /// <summary>

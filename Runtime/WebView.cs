@@ -191,11 +191,18 @@ namespace PlaySuperUnity
 
                     Debug.Log($"Page started: {data}");
 
-                    // Check for malformed close scheme (iOS appends to URL instead of triggering scheme)
+                    // Check for malformed schemes (iOS appends to URL instead of triggering scheme callback)
                     if (data.Contains("USER_CUSTOM_SCHEME://close") || data.Contains("USER_CUSTOM_SCHEME:/close"))
                     {
                         Debug.Log("Detected malformed close scheme in URL - closing WebView");
                         GpmWebView.Close();
+                        break;
+                    }
+
+                    if (data.Contains("USER_CUSTOM_SCHEME://transaction") || data.Contains("USER_CUSTOM_SCHEME:/transaction"))
+                    {
+                        Debug.Log("Detected malformed transaction scheme in URL - handling realtime transaction");
+                        PlaySuperUnitySDK.HandleRealtimeTransaction();
                         break;
                     }
 

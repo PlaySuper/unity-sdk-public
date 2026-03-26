@@ -56,7 +56,12 @@ namespace PlaySuperUnity
             // Fetch SDK transactions after store closes (purchases may have happened)
             if (IsLoggedIn() && SdkTransactionSyncManager.HasVisitedStore())
             {
+                Debug.Log("[PlaySuper] Store closed - fetching SDK transactions");
                 _ = FetchSdkTransactionsAfterAuth();
+            }
+            else
+            {
+                Debug.Log($"[PlaySuper] Store closed - skipping transaction fetch (loggedIn={IsLoggedIn()}, visitedStore={SdkTransactionSyncManager.HasVisitedStore()})");
             }
         }
 
@@ -646,16 +651,16 @@ namespace PlaySuperUnity
                     if (response.IsSuccessStatusCode)
                     {
                         string responseJson = await response.Content.ReadAsStringAsync();
-                        MarkStoreVisitedResponse data = JsonUtility.FromJson<MarkStoreVisitedResponse>(responseJson);
+                        MarkStoreVisitedResponse wrapper = JsonUtility.FromJson<MarkStoreVisitedResponse>(responseJson);
 
-                        if (data != null && data.success)
+                        if (wrapper?.data != null && wrapper.data.success)
                         {
                             // Update local cache
                             SdkTransactionSyncManager.SetHasVisitedStore(true);
-                            Debug.Log($"[PlaySuper] Store marked as visited (alreadyVisited: {data.alreadyVisited})");
+                            Debug.Log($"[PlaySuper] Store marked as visited (alreadyVisited: {wrapper.data.alreadyVisited})");
 
                             // If this is the first visit, fetch transactions in background
-                            if (!data.alreadyVisited)
+                            if (!wrapper.data.alreadyVisited)
                             {
                                 _ = FetchSdkTransactionsAfterAuth();
                             }
@@ -1209,7 +1214,8 @@ namespace PlaySuperUnity
                     if (response.IsSuccessStatusCode)
                     {
                         string json = await response.Content.ReadAsStringAsync();
-                        SdkTransactionsResponse data = JsonUtility.FromJson<SdkTransactionsResponse>(json);
+                        SdkTransactionsResponse wrapper = JsonUtility.FromJson<SdkTransactionsResponse>(json);
+                        var data = wrapper?.data;
 
                         // Update local store visit flag based on server state
                         if (data != null)
@@ -1322,7 +1328,8 @@ namespace PlaySuperUnity
                     if (response.IsSuccessStatusCode)
                     {
                         string responseJson = await response.Content.ReadAsStringAsync();
-                        CommitSdkSyncResponse data = JsonUtility.FromJson<CommitSdkSyncResponse>(responseJson);
+                        CommitSdkSyncResponse wrapper = JsonUtility.FromJson<CommitSdkSyncResponse>(responseJson);
+                        var data = wrapper?.data;
 
                         if (data != null && data.success)
                         {
