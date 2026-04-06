@@ -56,4 +56,64 @@ namespace PlaySuperUnity
         public int statusCode;
     }
 
+    /// <summary>
+    /// Extended player profile data with additional demographics/contact fields
+    /// </summary>
+    [System.Serializable]
+    public class PlayerProfileData
+    {
+        public string playerId;
+        public string firstName;
+        public string lastName;
+        public string gender; // "MALE", "FEMALE", "OTHER"
+        public string dateOfBirth; // ISO 8601 date string
+        public string email;
+        public string phoneNumber;
+        public string profilePicUrl;
+        public string createdAt;
+        public string updatedAt;
+    }
+
+    /// <summary>
+    /// Response from PATCH /player/gcommerce/profile
+    /// </summary>
+    [System.Serializable]
+    internal class PlayerProfileResponse
+    {
+        public PlayerProfileData data;
+        public string message;
+        public int statusCode;
+    }
+
+    /// <summary>
+    /// Request body for updating player profile
+    /// </summary>
+    [System.Serializable]
+    internal class UpdatePlayerProfileRequest
+    {
+        public string firstName;
+        public string lastName;
+        public string gender;
+        public string dateOfBirth;
+        public string email;
+        public string phoneNumber;
+
+        // Constructor to handle optional fields - only include non-null fields in JSON
+        public UpdatePlayerProfileRequest(
+            string firstName = null,
+            string lastName = null,
+            string gender = null,
+            string dateOfBirth = null,
+            string email = null,
+            string phoneNumber = null)
+        {
+            this.firstName = firstName;
+            this.lastName = lastName;
+            this.gender = gender;
+            this.dateOfBirth = dateOfBirth;
+            this.email = email;
+            this.phoneNumber = phoneNumber;
+        }
+    }
+
 }

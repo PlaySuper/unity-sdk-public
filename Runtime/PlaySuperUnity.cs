@@ -916,6 +916,97 @@ namespace PlaySuperUnity
             return profile;
         }
 
+        /// <summary>
+        /// Update player profile fields (firstName, lastName, gender, dateOfBirth, email, phoneNumber).
+        /// All parameters are optional - only provided fields will be updated.
+        /// </summary>
+        /// <param name="firstName">Player's first name</param>
+        /// <param name="lastName">Player's last name</param>
+        /// <param name="gender">Gender: "MALE", "FEMALE", or "OTHER"</param>
+        /// <param name="dateOfBirth">Date of birth in ISO 8601 format (e.g., "1990-01-01")</param>
+        /// <param name="email">Email address</param>
+        /// <param name="phoneNumber">Phone number in E.164 format (e.g., "+1234567890")</param>
+        /// <returns>Updated PlayerProfileData on success, null on failure</returns>
+        public static async Task<PlayerProfileData> UpdatePlayerProfile(
+            string firstName = null,
+            string lastName = null,
+            string gender = null,
+            string dateOfBirth = null,
+            string email = null,
+            string phoneNumber = null)
+        {
+            if (string.IsNullOrEmpty(authToken))
+            {
+                Debug.LogWarning("[PlaySuper] Cannot update profile - user not authenticated");
+                return null;
+            }
+
+            // Validate gender enum if provided
+            if (!string.IsNullOrEmpty(gender) && gender != "MALE" && gender != "FEMALE" && gender != "OTHER")
+            {
+                Debug.LogError($"[PlaySuper] Invalid gender value: {gender}. Must be MALE, FEMALE, or OTHER");
+                return null;
+            }
+
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Accept.Clear();
+                    client.DefaultRequestHeaders.Accept.Add(
+                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
+                    );
+                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
+
+                    UpdatePlayerProfileRequest requestBody = new UpdatePlayerProfileRequest(
+                        firstName,
+                        lastName,
+                        gender,
+                        dateOfBirth,
+                        email,
+                        phoneNumber
+                    );
+
+                    string jsonBody = JsonUtility.ToJson(requestBody);
+                    StringContent content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
+
+                    HttpResponseMessage response = await client.PatchAsync(
+                        $"{baseUrl}/player/gcommerce/profile",
+                        content
+                    );
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        string responseJson = await response.Content.ReadAsStringAsync();
+                        PlayerProfileResponse wrapper = JsonUtility.FromJson<PlayerProfileResponse>(responseJson);
+
+                        if (wrapper?.data != null)
+                        {
+                            Debug.Log($"[PlaySuper] Player profile updated successfully");
+                            return wrapper.data;
+                        }
+                        else
+                        {
+                            Debug.LogError("[PlaySuper] Invalid response format from profile update");
+                            return null;
+                        }
+                    }
+                    else
+                    {
+                        string errorBody = await response.Content.ReadAsStringAsync();
+                        Debug.LogError($"[PlaySuper] Error updating profile: {response.StatusCode} - {errorBody}");
+                        return null;
+                    }
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"[PlaySuper] Exception updating profile: {e.Message}");
+                return null;
+            }
+        }
+
         internal static List<Transaction> GetLocalTransactions()
         {
             string json = PlayerPrefs.GetString("transactions", "");
