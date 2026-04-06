@@ -1389,6 +1389,26 @@ namespace PlaySuperUnity
             Debug.Log("[PlaySuper] SDK transaction sync state cleared");
         }
 
+        /// <summary>
+        /// Logs out the current player by clearing the auth token, profile, and all
+        /// associated local state (transactions, user properties, analytics queue).
+        /// Call this when your player signs out.
+        /// </summary>
+        public static void Logout()
+        {
+            authToken = null;
+            profile = null;
+            PlayerPrefs.DeleteKey("authToken");
+
+            ClearUserProperties();
+            ClearSdkTransactionSyncState();
+            TransactionsManager.ClearTransactions();
+            MixPanelEventQueue.ClearQueue();
+
+            PlayerPrefs.Save();
+            Debug.Log("[PlaySuper] Player logged out — all session state cleared");
+        }
+
         #endregion
     }
 
