@@ -959,22 +959,32 @@ namespace PlaySuperUnity
                     client.DefaultRequestHeaders.Add("x-api-key", apiKey);
                     client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
 
-                    UpdatePlayerProfileRequest requestBody = new UpdatePlayerProfileRequest(
-                        firstName,
-                        lastName,
-                        gender,
-                        dateOfBirth,
-                        email,
-                        phoneNumber
-                    );
+                    // Build JSON manually to only include non-null fields
+                    // JsonUtility serializes null strings as empty strings, which fail API validation
+                    var jsonParts = new List<string>();
+                    if (!string.IsNullOrEmpty(firstName))
+                        jsonParts.Add($"\"firstName\":\"{firstName}\"");
+                    if (!string.IsNullOrEmpty(lastName))
+                        jsonParts.Add($"\"lastName\":\"{lastName}\"");
+                    if (!string.IsNullOrEmpty(gender))
+                        jsonParts.Add($"\"gender\":\"{gender}\"");
+                    if (!string.IsNullOrEmpty(dateOfBirth))
+                        jsonParts.Add($"\"dateOfBirth\":\"{dateOfBirth}\"");
+                    if (!string.IsNullOrEmpty(email))
+                        jsonParts.Add($"\"email\":\"{email}\"");
+                    if (!string.IsNullOrEmpty(phoneNumber))
+                        jsonParts.Add($"\"phoneNumber\":\"{phoneNumber}\"");
 
-                    string jsonBody = JsonUtility.ToJson(requestBody);
+                    string jsonBody = "{" + string.Join(",", jsonParts) + "}";
                     StringContent content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
-                    HttpResponseMessage response = await client.PatchAsync(
-                        $"{baseUrl}/player/gcommerce/profile",
-                        content
-                    );
+                    // Use SendAsync with HttpRequestMessage instead of PatchAsync
+                    // PatchAsync is not supported on all Unity platforms
+                    var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{baseUrl}/player/gcommerce/profile")
+                    {
+                        Content = content
+                    };
+                    HttpResponseMessage response = await client.SendAsync(request);
 
                     if (response.IsSuccessStatusCode)
                     {
