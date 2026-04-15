@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Networking;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -477,38 +477,32 @@ namespace PlaySuperUnity
 
             try
             {
-                var client = new HttpClient();
                 var encodedName = Uri.EscapeDataString(name);
                 var url = $"{baseUrl}/touchpoints/name/{encodedName}?coinId={Uri.EscapeDataString(coinId)}";
 
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-                request.Headers.Add("x-api-key", apiKey);
-
-                if (!string.IsNullOrEmpty(authToken))
+                using (var webRequest = UnityWebRequest.Get(url))
                 {
-                    request.Headers.Add("Authorization", $"Bearer {authToken}");
-                }
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    if (!string.IsNullOrEmpty(authToken))
+                        webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
 
-                HttpResponseMessage response = await client.SendAsync(request);
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                if (response.IsSuccessStatusCode)
-                {
-                    string json = await response.Content.ReadAsStringAsync();
-                    TouchpointApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointApiResponse>(json);
-                    return apiResponse?.data;
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        string json = webRequest.downloadHandler.text;
+                        TouchpointApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointApiResponse>(json);
+                        return apiResponse?.data;
+                    }
+                    else
+                    {
+                        Debug.LogError($"[PlaySuper] Error fetching touchpoint by name: {webRequest.responseCode} - {webRequest.error}");
+                        return null;
+                    }
                 }
-                else
-                {
-                    Debug.LogError($"[PlaySuper] Error fetching touchpoint by name: {response.StatusCode} - {response.ReasonPhrase}");
-                    return null;
-                }
-            }
-            catch (HttpRequestException e)
-            {
-                Debug.LogError($"[PlaySuper] Error GetTouchpointByName: {e.Message}");
-                return null;
             }
             catch (Exception e)
             {
@@ -549,38 +543,32 @@ namespace PlaySuperUnity
 
             try
             {
-                var client = new HttpClient();
                 var encodedId = Uri.EscapeDataString(id);
                 var url = $"{baseUrl}/touchpoints/{encodedId}?coinId={Uri.EscapeDataString(coinId)}";
 
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-                request.Headers.Add("x-api-key", apiKey);
-
-                if (!string.IsNullOrEmpty(authToken))
+                using (var webRequest = UnityWebRequest.Get(url))
                 {
-                    request.Headers.Add("Authorization", $"Bearer {authToken}");
-                }
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    if (!string.IsNullOrEmpty(authToken))
+                        webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
 
-                HttpResponseMessage response = await client.SendAsync(request);
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                if (response.IsSuccessStatusCode)
-                {
-                    string json = await response.Content.ReadAsStringAsync();
-                    TouchpointApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointApiResponse>(json);
-                    return apiResponse?.data;
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        string json = webRequest.downloadHandler.text;
+                        TouchpointApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointApiResponse>(json);
+                        return apiResponse?.data;
+                    }
+                    else
+                    {
+                        Debug.LogError($"[PlaySuper] Error fetching touchpoint by id: {webRequest.responseCode} - {webRequest.error}");
+                        return null;
+                    }
                 }
-                else
-                {
-                    Debug.LogError($"[PlaySuper] Error fetching touchpoint by id: {response.StatusCode} - {response.ReasonPhrase}");
-                    return null;
-                }
-            }
-            catch (HttpRequestException e)
-            {
-                Debug.LogError($"[PlaySuper] Error GetTouchpointById: {e.Message}");
-                return null;
             }
             catch (Exception e)
             {
@@ -614,37 +602,31 @@ namespace PlaySuperUnity
 
             try
             {
-                var client = new HttpClient();
                 var url = $"{baseUrl}/touchpoints?coinId={Uri.EscapeDataString(coinId)}";
 
-                var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-                request.Headers.Add("x-api-key", apiKey);
-
-                if (!string.IsNullOrEmpty(authToken))
+                using (var webRequest = UnityWebRequest.Get(url))
                 {
-                    request.Headers.Add("Authorization", $"Bearer {authToken}");
-                }
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    if (!string.IsNullOrEmpty(authToken))
+                        webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
 
-                HttpResponseMessage response = await client.SendAsync(request);
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                if (response.IsSuccessStatusCode)
-                {
-                    string json = await response.Content.ReadAsStringAsync();
-                    TouchpointListApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointListApiResponse>(json);
-                    return apiResponse?.data;
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        string json = webRequest.downloadHandler.text;
+                        TouchpointListApiResponse apiResponse = JsonConvert.DeserializeObject<TouchpointListApiResponse>(json);
+                        return apiResponse?.data;
+                    }
+                    else
+                    {
+                        Debug.LogError($"[PlaySuper] Error listing touchpoints: {webRequest.responseCode} - {webRequest.error}");
+                        return null;
+                    }
                 }
-                else
-                {
-                    Debug.LogError($"[PlaySuper] Error listing touchpoints: {response.StatusCode} - {response.ReasonPhrase}");
-                    return null;
-                }
-            }
-            catch (HttpRequestException e)
-            {
-                Debug.LogError($"[PlaySuper] Error ListTouchpoints: {e.Message}");
-                return null;
             }
             catch (Exception e)
             {

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Networking;
 using Newtonsoft.Json;
 
 namespace PlaySuperUnity
@@ -302,24 +302,22 @@ namespace PlaySuperUnity
                 url += $"&version={version}";
             }
 
-            using (var client = new HttpClient())
+            using (var webRequest = UnityWebRequest.Get(url))
             {
-                client.DefaultRequestHeaders.Accept.Clear();
-                client.DefaultRequestHeaders.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                );
-                client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+                webRequest.SetRequestHeader("Accept", "application/json");
+                webRequest.SetRequestHeader("x-api-key", apiKey);
 
-                HttpResponseMessage response = await client.GetAsync(url);
+                var operation = webRequest.SendWebRequest();
+                while (!operation.isDone)
+                    await Task.Yield();
 
-                if (!response.IsSuccessStatusCode)
+                if (webRequest.result != UnityWebRequest.Result.Success)
                 {
-                    string errorContent = await response.Content.ReadAsStringAsync();
-                    Debug.LogError($"[PlaySuper] Failed to fetch curated {typeSegment}: {response.StatusCode} - {errorContent}");
-                    throw new HttpRequestException($"Failed to fetch curated list: {response.StatusCode}");
+                    Debug.LogError($"[PlaySuper] Failed to fetch curated {typeSegment}: {webRequest.responseCode} - {webRequest.downloadHandler.text}");
+                    throw new Exception($"Failed to fetch curated list: {webRequest.responseCode}");
                 }
 
-                string json = await response.Content.ReadAsStringAsync();
+                string json = webRequest.downloadHandler.text;
                 Debug.Log($"[PlaySuper] Curated list raw response: {json.Substring(0, Math.Min(500, json.Length))}...");
 
                 var result = new CuratedListResponse { type = type };

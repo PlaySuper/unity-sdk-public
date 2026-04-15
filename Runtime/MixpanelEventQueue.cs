@@ -170,8 +170,9 @@ namespace PlaySuperUnity
                     break; // Stop processing and retry later
                 }
 
-                // Small delay between batches
-                await Task.Delay(100);
+                // Small delay between batches (~100ms at 60fps)
+                for (int f = 0; f < 6; f++)
+                    await Task.Yield();
             }
 
             lock (queueLock)

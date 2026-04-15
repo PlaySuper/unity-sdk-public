@@ -130,7 +130,7 @@ namespace PlaySuperUnity
             );
         }
 
-        private static async void OnCallback(
+        private static void OnCallback(
             GpmWebViewCallback.CallbackType callbackType,
             string data,
             GpmWebViewError error
@@ -150,22 +150,11 @@ namespace PlaySuperUnity
                     // Notify SDK subscribers
                     PlaySuperUnitySDK.NotifyStoreClosed();
 
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            // Timestamp unix timestamp
-                            long unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            await MixPanelManager.SendEvent(
-                                Constants.MixpanelEvent.STORE_CLOSE,
-                                unixTimestamp
-                            );
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogError($"Error in background MixPanel event: {ex.Message}");
-                        }
-                    });
+                    // Fire-and-forget on main thread (SendEvent uses UnityWebRequest internally)
+                    MixPanelManager.SendEvent(
+                        Constants.MixpanelEvent.STORE_CLOSE,
+                        DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    );
                     break;
 
                 case GpmWebViewCallback.CallbackType.Open:
@@ -175,23 +164,11 @@ namespace PlaySuperUnity
                     // Start polling for transaction signals from the store
                     StartTransactionPolling();
 
-                    // Also move this to background thread for consistency
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            long unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                            await MixPanelManager.SendEvent(
-                                Constants.MixpanelEvent.STORE_OPEN,
-                                unixTimestamp
-                            );
-                        }
-                        catch (Exception ex)
-                        {
-                            Debug.LogError($"Error in background MixPanel event: {ex.Message}");
-                        }
-                    });
-
+                    // Fire-and-forget on main thread (SendEvent uses UnityWebRequest internally)
+                    MixPanelManager.SendEvent(
+                        Constants.MixpanelEvent.STORE_OPEN,
+                        DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+                    );
                     break;
 
                 case GpmWebViewCallback.CallbackType.PageStarted:

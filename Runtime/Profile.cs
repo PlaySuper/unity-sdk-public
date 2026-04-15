@@ -1,8 +1,7 @@
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Threading.Tasks;
-using System.Text;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace PlaySuperUnity
 {
@@ -18,20 +17,21 @@ namespace PlaySuperUnity
             {
                 try
                 {
-                    var client = new HttpClient();
-                    var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/player/profile");
-                    request.Headers.Accept.Clear();
-                    request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*"));
-                    request.Headers.Add("x-api-key", apiKey);
-                    request.Headers.Add("Authorization", $"Bearer {token}");
-                    HttpResponseMessage response = await client.SendAsync(request);
-
-                    response.EnsureSuccessStatusCode();
-                    string profileJson = await response.Content.ReadAsStringAsync();
-                    ProfileResponse profileData = JsonUtility.FromJson<ProfileResponse>(profileJson);
-                    return profileData.data;
+                    using (var webRequest = UnityWebRequest.Get($"{baseUrl}/player/profile"))
+                    {
+                        webRequest.SetRequestHeader("x-api-key", apiKey);
+                        webRequest.SetRequestHeader("Authorization", $"Bearer {token}");
+                        var operation = webRequest.SendWebRequest();
+                        while (!operation.isDone)
+                            await Task.Yield();
+                        if (webRequest.result != UnityWebRequest.Result.Success)
+                            throw new System.Exception($"HTTP {webRequest.responseCode}: {webRequest.error}");
+                        string profileJson = webRequest.downloadHandler.text;
+                        ProfileResponse profileData = JsonUtility.FromJson<ProfileResponse>(profileJson);
+                        return profileData.data;
+                    }
                 }
-                catch (HttpRequestException e)
+                catch (System.Exception e)
                 {
                     Debug.LogError($"Error GetProfileData: {e.Message}");
                     return null;

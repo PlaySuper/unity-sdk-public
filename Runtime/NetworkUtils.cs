@@ -113,11 +113,19 @@ namespace PlaySuperUnity
 
         public static string GetIPAddress()
         {
-            return Dns.GetHostEntry(Dns.GetHostName())
-                .AddressList.First(f =>
+            try
+            {
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+                var addr = host.AddressList.FirstOrDefault(f =>
                     f.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
-                )
-                .ToString();
+                );
+                return addr != null ? addr.ToString() : "0.0.0.0";
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[NetworkUtils] GetIPAddress failed: {ex.Message}");
+                return "0.0.0.0";
+            }
         }
 
         public static async Task<string> GetPublicIPAddress()

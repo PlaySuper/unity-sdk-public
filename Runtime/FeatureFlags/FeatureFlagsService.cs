@@ -70,10 +70,9 @@ namespace PlaySuperUnity.FeatureFlags
             // Start initial fetch and wait for it to complete
             await RefreshFeaturesFromApi();
 
-            // Start background refresh task
-#pragma warning disable CS4014 // Because this call is not awaited
-            Task.Run(() => BackgroundRefreshLoop(refreshCancellation.Token));
-#pragma warning restore CS4014
+            // Start background refresh on main thread (must not use Task.Run —
+            // the loop calls UnityWebRequest which requires the main thread)
+            _ = BackgroundRefreshLoop(refreshCancellation.Token);
         }
 
         /// <summary>
@@ -347,7 +346,9 @@ namespace PlaySuperUnity.FeatureFlags
         }
 
         /// <summary>
-        /// Background refresh loop
+        /// Background refresh loop — runs on the main thread via Task.Yield().
+        /// Must NOT use Task.Run or Task.Delay, which would move execution
+        /// to a thread pool thread where Unity APIs are unavailable.
         /// </summary>
         private async Task BackgroundRefreshLoop(CancellationToken cancellationToken)
         {
@@ -355,19 +356,17 @@ namespace PlaySuperUnity.FeatureFlags
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
+                    // Wait for refresh interval using main-thread-safe yield
+                    float waitUntil = Time.realtimeSinceStartup + Constants.GROWTHBOOK_REFRESH_INTERVAL_SECONDS;
+                    while (Time.realtimeSinceStartup < waitUntil)
+                    {
+                        if (cancellationToken.IsCancellationRequested) return;
+                        await Task.Yield();
+                    }
+
                     if (cache.ShouldRefresh())
                     {
                         await RefreshFeaturesFromApi();
-                    }
-
-                    try
-                    {
-                        await Task.Delay(TimeSpan.FromSeconds(Constants.GROWTHBOOK_REFRESH_INTERVAL_SECONDS), cancellationToken);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        Debug.Log("[PlaySuper][FeatureFlags] Background refresh cancelled");
-                        break;
                     }
                 }
             }

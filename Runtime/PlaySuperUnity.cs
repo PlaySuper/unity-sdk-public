@@ -1,13 +1,13 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 // using Gpm.Communicator;
 using Gpm.WebView;
 using UnityEngine;
+using UnityEngine.Networking;
 using PlaySuperUnity.FeatureFlags;
 
 [assembly: InternalsVisibleTo("playsuper.unity.Runtime.Tests")]
@@ -350,32 +350,30 @@ namespace PlaySuperUnity
 
             try
             {
-                var client = new HttpClient();
                 var jsonPayload = $@"{{""amount"": {amount}}}";
-                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                 var url = $"{baseUrl}/coins/{coinId}/distribute";
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*")
-                );
-                request.Headers.Add("x-api-key", apiKey);
-                request.Headers.Add("Authorization", $"Bearer {authToken}");
-
-                var response = await client.SendAsync(request);
-
-                if (response.IsSuccessStatusCode)
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
+                using (var webRequest = new UnityWebRequest(url, "POST"))
                 {
-                    var responseContent = await response.Content.ReadAsStringAsync();
-                    Debug.Log("Coins distributed successfully: " + responseContent);
-                }
-                else
-                {
-                    Debug.LogError($"Error from DistributeCoins: {response.StatusCode}");
-                    // IMPORTANT: Store locally on server error
-                    TransactionsManager.AddTransaction(coinId, amount);
-                    Debug.Log("Transaction stored locally due to server error");
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        Debug.Log("Coins distributed successfully: " + webRequest.downloadHandler.text);
+                    }
+                    else
+                    {
+                        Debug.LogError($"Error from DistributeCoins: {webRequest.responseCode}");
+                        // IMPORTANT: Store locally on server error
+                        TransactionsManager.AddTransaction(coinId, amount);
+                        Debug.Log("Transaction stored locally due to server error");
+                    }
                 }
             }
             catch (Exception ex)
@@ -398,32 +396,30 @@ namespace PlaySuperUnity
 
             try
             {
-                var client = new HttpClient();
                 var jsonPayload = $@"{{""amount"": {amount}}}";
-                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                 var url = $"{baseUrl}/coins/{coinId}/deduct";
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*")
-                );
-                request.Headers.Add("x-api-key", apiKey);
-                request.Headers.Add("Authorization", $"Bearer {authToken}");
-
-                var response = await client.SendAsync(request);
-
-                if (response.IsSuccessStatusCode)
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
+                using (var webRequest = new UnityWebRequest(url, "POST"))
                 {
-                    var responseContent = await response.Content.ReadAsStringAsync();
-                    Debug.Log("Coins deducted successfully: " + responseContent);
-                }
-                else
-                {
-                    Debug.LogError($"Error from DeductCoins: {response.StatusCode}");
-                    // IMPORTANT: Store locally on server error
-                    TransactionsManager.AddTransaction(coinId, amount, "deduct");
-                    Debug.Log("Deduction stored locally due to server error");
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        Debug.Log("Coins deducted successfully: " + webRequest.downloadHandler.text);
+                    }
+                    else
+                    {
+                        Debug.LogError($"Error from DeductCoins: {webRequest.responseCode}");
+                        // IMPORTANT: Store locally on server error
+                        TransactionsManager.AddTransaction(coinId, amount, "deduct");
+                        Debug.Log("Deduction stored locally due to server error");
+                    }
                 }
             }
             catch (Exception ex)
@@ -445,38 +441,39 @@ namespace PlaySuperUnity
 
             try
             {
-                var client = new HttpClient();
                 var payload = new CreatePlayerPayload { uuid = uuid };
                 var jsonPayload = JsonUtility.ToJson(payload);
-                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                 var url = $"{baseUrl}/player/create-with-uuid";
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                );
-                request.Headers.Add("x-api-key", apiKey);
-
-                var response = await client.SendAsync(request);
-                var responseContent = await response.Content.ReadAsStringAsync();
-
-                if (response.IsSuccessStatusCode)
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
+                using (var webRequest = new UnityWebRequest(url, "POST"))
                 {
-                    var createResponse = JsonUtility.FromJson<CreatePlayerResponse>(responseContent);
-                    if (createResponse?.data != null)
-                    {
-                        Debug.Log("[PlaySuper] Player created successfully: " + createResponse.data.playerId);
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[PlaySuper] Player created but response missing data: " + responseContent);
-                    }
-                    return createResponse;
-                }
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                Debug.LogError($"Error from CreatePlayerWithUuid: {response.StatusCode} - {responseContent}");
-                return null;
+                    string responseContent = webRequest.downloadHandler.text;
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        var createResponse = JsonUtility.FromJson<CreatePlayerResponse>(responseContent);
+                        if (createResponse?.data != null)
+                        {
+                            Debug.Log("[PlaySuper] Player created successfully: " + createResponse.data.playerId);
+                        }
+                        else
+                        {
+                            Debug.LogWarning("[PlaySuper] Player created but response missing data: " + responseContent);
+                        }
+                        return createResponse;
+                    }
+
+                    Debug.LogError($"Error from CreatePlayerWithUuid: {webRequest.responseCode} - {responseContent}");
+                    return null;
+                }
             }
             catch (Exception ex)
             {
@@ -495,42 +492,42 @@ namespace PlaySuperUnity
 
             try
             {
-                var client = new HttpClient();
                 var payload = new CreatePlayerPayload { uuid = uuid };
                 var jsonPayload = JsonUtility.ToJson(payload);
-                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                 var url = $"{baseUrl}/player/login/federatedByStudio";
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*")
-                );
-                request.Headers.Add("x-api-key", apiKey);
-
-                var response = await client.SendAsync(request);
-                var responseContent = await response.Content.ReadAsStringAsync();
-
-                if (response.IsSuccessStatusCode)
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
+                using (var webRequest = new UnityWebRequest(url, "POST"))
                 {
-                    var loginResponse = JsonUtility.FromJson<FederatedLoginResponse>(responseContent);
-                    if (!string.IsNullOrEmpty(loginResponse?.access_token))
-                    {
-                        authToken = loginResponse.access_token;
-                        PlayerPrefs.SetString("authToken", authToken);
-                        PlayerPrefs.Save();
-                        profile = await ProfileManager.GetProfileData();
-                        Debug.Log("[PlaySuper] Federated login succeeded");
-                    }
-                    else
-                    {
-                        Debug.LogWarning("[PlaySuper] Federated login response missing access_token");
-                    }
-                    return loginResponse;
-                }
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                Debug.LogError($"Error from LoginFederatedByStudio: {response.StatusCode} - {responseContent}");
-                return null;
+                    string responseContent = webRequest.downloadHandler.text;
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        var loginResponse = JsonUtility.FromJson<FederatedLoginResponse>(responseContent);
+                        if (!string.IsNullOrEmpty(loginResponse?.access_token))
+                        {
+                            authToken = loginResponse.access_token;
+                            PlayerPrefs.SetString("authToken", authToken);
+                            PlayerPrefs.Save();
+                            profile = await ProfileManager.GetProfileData();
+                            Debug.Log("[PlaySuper] Federated login succeeded");
+                        }
+                        else
+                        {
+                            Debug.LogWarning("[PlaySuper] Federated login response missing access_token");
+                        }
+                        return loginResponse;
+                    }
+
+                    Debug.LogError($"Error from LoginFederatedByStudio: {webRequest.responseCode} - {responseContent}");
+                    return null;
+                }
             }
             catch (Exception ex)
             {
@@ -549,9 +546,6 @@ namespace PlaySuperUnity
 
             try
             {
-                var client = new HttpClient();
-
-
                 // Build the payload with player and game information
                 var payload = new PlayerIdentificationPayload
                 {
@@ -561,25 +555,25 @@ namespace PlaySuperUnity
                 };
 
                 var jsonPayload = JsonUtility.ToJson(payload);
-                var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                 var url = $"{GetResolvedPSAnalyticsUrl()}/events/identify-user";
-
-                var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = content };
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                );
-
-                var response = await client.SendAsync(request);
-
-                if (response.IsSuccessStatusCode)
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
+                using (var webRequest = new UnityWebRequest(url, "POST"))
                 {
-                    var responseContent = await response.Content.ReadAsStringAsync();
-                    Debug.Log("[PlaySuper] Player identification request sent successfully: " + responseContent);
-                }
-                else
-                {
-                    Debug.LogWarning($"[PlaySuper] Player identification request failed: {response.StatusCode} - {response.ReasonPhrase}");
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        Debug.Log("[PlaySuper] Player identification request sent successfully: " + webRequest.downloadHandler.text);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[PlaySuper] Player identification request failed: {webRequest.responseCode} - {webRequest.error}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -588,12 +582,12 @@ namespace PlaySuperUnity
             }
         }
 
-        public async void OpenStore()
+        public void OpenStore()
         {
             OpenStore(null, null);
         }
 
-        public async void OpenStore(string url = null, string utmContent = null)
+        public void OpenStore(string url = null, string utmContent = null)
         {
             MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
 
@@ -632,25 +626,22 @@ namespace PlaySuperUnity
 
             try
             {
-                using (var client = new HttpClient())
+                byte[] bodyRaw = Encoding.UTF8.GetBytes("{}");
+                using (var webRequest = new UnityWebRequest($"{baseUrl}/player/mark-store-visited", "POST"))
                 {
-                    client.DefaultRequestHeaders.Accept.Clear();
-                    client.DefaultRequestHeaders.Accept.Add(
-                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                    );
-                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                    StringContent content = new StringContent("{}", Encoding.UTF8, "application/json");
-
-                    HttpResponseMessage response = await client.PostAsync(
-                        $"{baseUrl}/player/mark-store-visited",
-                        content
-                    );
-
-                    if (response.IsSuccessStatusCode)
+                    if (webRequest.result == UnityWebRequest.Result.Success)
                     {
-                        string responseJson = await response.Content.ReadAsStringAsync();
+                        string responseJson = webRequest.downloadHandler.text;
                         MarkStoreVisitedResponse wrapper = JsonUtility.FromJson<MarkStoreVisitedResponse>(responseJson);
 
                         if (wrapper?.data != null && wrapper.data.success)
@@ -668,7 +659,7 @@ namespace PlaySuperUnity
                     }
                     else
                     {
-                        Debug.LogWarning($"[PlaySuper] Failed to mark store visited: {response.StatusCode}");
+                        Debug.LogWarning($"[PlaySuper] Failed to mark store visited: {webRequest.responseCode}");
                     }
                 }
             }
@@ -694,9 +685,14 @@ namespace PlaySuperUnity
             authToken = token;
             profile = await ProfileManager.GetProfileData();
 
+            if (profile == null)
+            {
+                Debug.LogWarning("[PlaySuper] Failed to fetch profile after login - some features may be unavailable");
+            }
+
             await MixPanelManager.SendEvent(Constants.MixpanelEvent.PLAYER_IDENTIFY);
 
-            // Send player identification POST request
+            // Send player identification POST request (guards against null profile internally)
             await SendPlayerIdentificationRequest();
 
             // Process pending transactions
@@ -764,108 +760,109 @@ namespace PlaySuperUnity
 
         internal async void OnTokenReceive(string _token)
         {
-            await ProcessTokenCommon(_token);
-            // Reload webview for callback scenarios
-            GpmWebView.ExecuteJavaScript("window.location.reload()");
+            try
+            {
+                await ProcessTokenCommon(_token);
+                // Reload webview for callback scenarios
+                GpmWebView.ExecuteJavaScript("window.location.reload()");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PlaySuper] Error processing token: {ex.Message}");
+            }
         }
 
         public async Task<List<CoinBalance>> GetBalance()
         {
             if (authToken == null)
             {
-                var client = new HttpClient();
-
-                CoinResponse coinData = null;
-                client.DefaultRequestHeaders.Accept.Clear();
-                client.DefaultRequestHeaders.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                );
-                client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-
-                HttpResponseMessage response = await client.GetAsync($"{baseUrl}/coins");
-
-                if (response.IsSuccessStatusCode)
+                using (var webRequest = UnityWebRequest.Get($"{baseUrl}/coins"))
                 {
-                    string coinJson = await response.Content.ReadAsStringAsync();
-                    coinData = JsonUtility.FromJson<CoinResponse>(coinJson);
-                    List<Transaction> transactionList = GetLocalTransactions();
-                    List<CoinBalance> balances = new List<CoinBalance>();
-                    foreach (Coin c in coinData.data)
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
+
+                    if (webRequest.result == UnityWebRequest.Result.Success)
                     {
-                        CoinBalance cb = new CoinBalance(c.id, c.name, c.url, 0);
-                        balances.Add(cb);
-                    }
-                    foreach (Transaction t in transactionList)
-                    {
-                        foreach (CoinBalance cb in balances)
+                        string coinJson = webRequest.downloadHandler.text;
+                        CoinResponse coinData = JsonUtility.FromJson<CoinResponse>(coinJson);
+                        List<Transaction> transactionList = GetLocalTransactions();
+                        List<CoinBalance> balances = new List<CoinBalance>();
+                        foreach (Coin c in coinData.data)
                         {
-                            if (cb.id == t.coinId)
+                            CoinBalance cb = new CoinBalance(c.id, c.name, c.url, 0);
+                            balances.Add(cb);
+                        }
+                        foreach (Transaction t in transactionList)
+                        {
+                            foreach (CoinBalance cb in balances)
                             {
-                                cb.amount += t.amount;
+                                if (cb.id == t.coinId)
+                                {
+                                    cb.amount += t.amount;
+                                }
                             }
                         }
+                        return balances;
                     }
-
-                    return balances;
-                }
-                else
-                {
-                    Debug.LogError($"Error in fetching coins for game: {response.StatusCode}");
-                    return null;
+                    else
+                    {
+                        Debug.LogError($"Error in fetching coins for game: {webRequest.responseCode}");
+                        return null;
+                    }
                 }
             }
             else
             {
-                var client = new HttpClient();
-                client.DefaultRequestHeaders.Accept.Clear();
-                client.DefaultRequestHeaders.Accept.Add(
-                    new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                );
-                client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
-
-                // Get balance from PlaySuper API
-                HttpResponseMessage response = await client.GetAsync($"{baseUrl}/player/funds");
-
-                FundResponse fundsData = null;
-                List<CoinBalance> balances = new List<CoinBalance>();
-                if (response.IsSuccessStatusCode)
+                using (var webRequest = UnityWebRequest.Get($"{baseUrl}/player/funds"))
                 {
-                    string fundsJson = await response.Content.ReadAsStringAsync();
-                    fundsData = JsonUtility.FromJson<FundResponse>(fundsJson);
-                    if (fundsData.data != null)
-                    {
-                        foreach (PlayerCoin pc in fundsData.data)
-                        {
-                            CoinBalance cb = new CoinBalance(
-                                pc.coinId,
-                                pc.coin.name,
-                                pc.coin.pictureUrl,
-                                pc.balance
-                            );
-                            balances.Add(cb);
-                        }
-                    }
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                    // Add balance from local transactions
-                    List<Transaction> transactionList = GetLocalTransactions();
-                    foreach (Transaction t in transactionList)
+                    List<CoinBalance> balances = new List<CoinBalance>();
+                    if (webRequest.result == UnityWebRequest.Result.Success)
                     {
-                        for (int i = 0; i < balances.Count; i++)
+                        string fundsJson = webRequest.downloadHandler.text;
+                        FundResponse fundsData = JsonUtility.FromJson<FundResponse>(fundsJson);
+                        if (fundsData.data != null)
                         {
-                            if (t.coinId == balances[i].id)
+                            foreach (PlayerCoin pc in fundsData.data)
                             {
-                                balances[i].amount += t.amount;
+                                CoinBalance cb = new CoinBalance(
+                                    pc.coinId,
+                                    pc.coin.name,
+                                    pc.coin.pictureUrl,
+                                    pc.balance
+                                );
+                                balances.Add(cb);
                             }
                         }
-                    }
 
-                    return balances;
-                }
-                else
-                {
-                    Debug.LogError($"Error from GetBalance: {response}");
-                    return null;
+                        // Add balance from local transactions
+                        List<Transaction> transactionList = GetLocalTransactions();
+                        foreach (Transaction t in transactionList)
+                        {
+                            for (int i = 0; i < balances.Count; i++)
+                            {
+                                if (t.coinId == balances[i].id)
+                                {
+                                    balances[i].amount += t.amount;
+                                }
+                            }
+                        }
+                        return balances;
+                    }
+                    else
+                    {
+                        Debug.LogError($"Error from GetBalance: {webRequest.responseCode}");
+                        return null;
+                    }
                 }
             }
         }
@@ -904,11 +901,18 @@ namespace PlaySuperUnity
 
         public static async void SetAuthToken(string token)
         {
-            authToken = token;
-            PlayerPrefs.SetString("authToken", token);
-            PlayerPrefs.Save();
-            // Fetch and set the profile for this token
-            profile = await ProfileManager.GetProfileData();
+            try
+            {
+                authToken = token;
+                PlayerPrefs.SetString("authToken", token);
+                PlayerPrefs.Save();
+                // Fetch and set the profile for this token
+                profile = await ProfileManager.GetProfileData();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PlaySuper] Error setting auth token: {ex.Message}");
+            }
         }
 
         internal static ProfileData GetProfileData()
@@ -950,45 +954,39 @@ namespace PlaySuperUnity
 
             try
             {
-                using (var client = new HttpClient())
+                // Build JSON manually to only include non-null fields
+                // JsonUtility serializes null strings as empty strings, which fail API validation
+                var jsonParts = new List<string>();
+                if (!string.IsNullOrEmpty(firstName))
+                    jsonParts.Add($"\"firstName\":\"{firstName}\"");
+                if (!string.IsNullOrEmpty(lastName))
+                    jsonParts.Add($"\"lastName\":\"{lastName}\"");
+                if (!string.IsNullOrEmpty(gender))
+                    jsonParts.Add($"\"gender\":\"{gender}\"");
+                if (!string.IsNullOrEmpty(dateOfBirth))
+                    jsonParts.Add($"\"dateOfBirth\":\"{dateOfBirth}\"");
+                if (!string.IsNullOrEmpty(email))
+                    jsonParts.Add($"\"email\":\"{email}\"");
+                if (!string.IsNullOrEmpty(phoneNumber))
+                    jsonParts.Add($"\"phoneNumber\":\"{phoneNumber}\"");
+
+                string jsonBody = "{" + string.Join(",", jsonParts) + "}";
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+                using (var webRequest = new UnityWebRequest($"{baseUrl}/player/gcommerce/profile", "PATCH"))
                 {
-                    client.DefaultRequestHeaders.Accept.Clear();
-                    client.DefaultRequestHeaders.Accept.Add(
-                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                    );
-                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                    // Build JSON manually to only include non-null fields
-                    // JsonUtility serializes null strings as empty strings, which fail API validation
-                    var jsonParts = new List<string>();
-                    if (!string.IsNullOrEmpty(firstName))
-                        jsonParts.Add($"\"firstName\":\"{firstName}\"");
-                    if (!string.IsNullOrEmpty(lastName))
-                        jsonParts.Add($"\"lastName\":\"{lastName}\"");
-                    if (!string.IsNullOrEmpty(gender))
-                        jsonParts.Add($"\"gender\":\"{gender}\"");
-                    if (!string.IsNullOrEmpty(dateOfBirth))
-                        jsonParts.Add($"\"dateOfBirth\":\"{dateOfBirth}\"");
-                    if (!string.IsNullOrEmpty(email))
-                        jsonParts.Add($"\"email\":\"{email}\"");
-                    if (!string.IsNullOrEmpty(phoneNumber))
-                        jsonParts.Add($"\"phoneNumber\":\"{phoneNumber}\"");
-
-                    string jsonBody = "{" + string.Join(",", jsonParts) + "}";
-                    StringContent content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-
-                    // Use SendAsync with HttpRequestMessage instead of PatchAsync
-                    // PatchAsync is not supported on all Unity platforms
-                    var request = new HttpRequestMessage(new HttpMethod("PATCH"), $"{baseUrl}/player/gcommerce/profile")
+                    if (webRequest.result == UnityWebRequest.Result.Success)
                     {
-                        Content = content
-                    };
-                    HttpResponseMessage response = await client.SendAsync(request);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        string responseJson = await response.Content.ReadAsStringAsync();
+                        string responseJson = webRequest.downloadHandler.text;
                         PlayerProfileResponse wrapper = JsonUtility.FromJson<PlayerProfileResponse>(responseJson);
 
                         if (wrapper?.data != null)
@@ -1004,8 +1002,7 @@ namespace PlaySuperUnity
                     }
                     else
                     {
-                        string errorBody = await response.Content.ReadAsStringAsync();
-                        Debug.LogError($"[PlaySuper] Error updating profile: {response.StatusCode} - {errorBody}");
+                        Debug.LogError($"[PlaySuper] Error updating profile: {webRequest.responseCode} - {webRequest.downloadHandler.text}");
                         return null;
                     }
                 }
@@ -1135,7 +1132,10 @@ namespace PlaySuperUnity
                     flagsCts?.Cancel();
                     featureFlags?.Dispose();
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[PlaySuper] Error during dispose: {ex.Message}");
+                }
                 DestroyImmediate(_instance.gameObject);
             }
         }
@@ -1231,32 +1231,39 @@ namespace PlaySuperUnity
 
         private static async Task FetchFlagsInitialAndSchedule()
         {
-            var clientKey = "sdk-7lLklUP0lUDKF2Q8";
-            Debug.Log("[PlaySuper][Flags] Starting flag initialization...");
-
-            featureFlags = new FeatureFlags.FeatureFlagsService();
-            await featureFlags.Initialize(clientKey);
-
-            Debug.Log("[PlaySuper][Flags] Flag service initialized, getting flag values...");
-
-            // Use the service instead of CDN fetch
-            var eventSingleUrl = featureFlags.GetEventSingleUrl();
-            var eventBatchUrl = featureFlags.GetEventBatchUrl();
-            var enableAdId = featureFlags.IsAdIdEnabled();
-            var psAnalyticsUrl = featureFlags.GetPSAnalyticsUrl();
-
-            // Apply the flags
-            var flags = new SdkFlagsResponse
+            try
             {
-                eventSingleUrl = eventSingleUrl,
-                eventBatchUrl = eventBatchUrl,
-                enableAdId = enableAdId,
-                psAnalyticsUrl = psAnalyticsUrl,
-                schemaVersion = 1
-            };
+                var clientKey = "sdk-7lLklUP0lUDKF2Q8";
+                Debug.Log("[PlaySuper][Flags] Starting flag initialization...");
 
-            ApplyFlags(flags);
-            Debug.Log("[PlaySuper][Flags] Initial flag fetch completed");
+                featureFlags = new FeatureFlags.FeatureFlagsService();
+                await featureFlags.Initialize(clientKey);
+
+                Debug.Log("[PlaySuper][Flags] Flag service initialized, getting flag values...");
+
+                // Use the service instead of CDN fetch
+                var eventSingleUrl = featureFlags.GetEventSingleUrl();
+                var eventBatchUrl = featureFlags.GetEventBatchUrl();
+                var enableAdId = featureFlags.IsAdIdEnabled();
+                var psAnalyticsUrl = featureFlags.GetPSAnalyticsUrl();
+
+                // Apply the flags
+                var flags = new SdkFlagsResponse
+                {
+                    eventSingleUrl = eventSingleUrl,
+                    eventBatchUrl = eventBatchUrl,
+                    enableAdId = enableAdId,
+                    psAnalyticsUrl = psAnalyticsUrl,
+                    schemaVersion = 1
+                };
+
+                ApplyFlags(flags);
+                Debug.Log("[PlaySuper][Flags] Initial flag fetch completed");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[PlaySuper][Flags] Failed to initialize feature flags: {ex.Message}");
+            }
         }
 
         #region SDK Transaction Sync
@@ -1301,20 +1308,18 @@ namespace PlaySuperUnity
 
             try
             {
-                using (var client = new HttpClient())
+                using (var webRequest = UnityWebRequest.Get($"{baseUrl}/player/sdk-transactions"))
                 {
-                    client.DefaultRequestHeaders.Accept.Clear();
-                    client.DefaultRequestHeaders.Accept.Add(
-                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                    );
-                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                    HttpResponseMessage response = await client.GetAsync($"{baseUrl}/player/sdk-transactions");
-
-                    if (response.IsSuccessStatusCode)
+                    if (webRequest.result == UnityWebRequest.Result.Success)
                     {
-                        string json = await response.Content.ReadAsStringAsync();
+                        string json = webRequest.downloadHandler.text;
                         SdkTransactionsResponse wrapper = JsonUtility.FromJson<SdkTransactionsResponse>(json);
                         var data = wrapper?.data;
 
@@ -1344,7 +1349,7 @@ namespace PlaySuperUnity
                     }
                     else
                     {
-                        Debug.LogError($"[PlaySuper] Error fetching SDK transactions: {response.StatusCode}");
+                        Debug.LogError($"[PlaySuper] Error fetching SDK transactions: {webRequest.responseCode}");
                         return null;
                     }
                 }
@@ -1408,27 +1413,24 @@ namespace PlaySuperUnity
 
             try
             {
-                using (var client = new HttpClient())
+                CommitSdkSyncRequest requestBody = new CommitSdkSyncRequest(lastProcessedTransactionId);
+                string jsonBody = JsonUtility.ToJson(requestBody);
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+                using (var webRequest = new UnityWebRequest($"{baseUrl}/player/sdk-transactions/commit", "POST"))
                 {
-                    client.DefaultRequestHeaders.Accept.Clear();
-                    client.DefaultRequestHeaders.Accept.Add(
-                        new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json")
-                    );
-                    client.DefaultRequestHeaders.Add("x-api-key", apiKey);
-                    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {authToken}");
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
 
-                    CommitSdkSyncRequest requestBody = new CommitSdkSyncRequest(lastProcessedTransactionId);
-                    string jsonBody = JsonUtility.ToJson(requestBody);
-                    StringContent content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-
-                    HttpResponseMessage response = await client.PostAsync(
-                        $"{baseUrl}/player/sdk-transactions/commit",
-                        content
-                    );
-
-                    if (response.IsSuccessStatusCode)
+                    if (webRequest.result == UnityWebRequest.Result.Success)
                     {
-                        string responseJson = await response.Content.ReadAsStringAsync();
+                        string responseJson = webRequest.downloadHandler.text;
                         CommitSdkSyncResponse wrapper = JsonUtility.FromJson<CommitSdkSyncResponse>(responseJson);
                         var data = wrapper?.data;
 
@@ -1449,8 +1451,7 @@ namespace PlaySuperUnity
                     }
                     else
                     {
-                        string errorBody = await response.Content.ReadAsStringAsync();
-                        Debug.LogError($"[PlaySuper] Error committing SDK transactions: {response.StatusCode} - {errorBody}");
+                        Debug.LogError($"[PlaySuper] Error committing SDK transactions: {webRequest.responseCode} - {webRequest.downloadHandler.text}");
                         return false;
                     }
                 }

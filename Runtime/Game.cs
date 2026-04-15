@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Net.Http;
-using System.Text;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace PlaySuperUnity
 {
@@ -16,20 +15,20 @@ namespace PlaySuperUnity
             {
                 try
                 {
-                    var client = new HttpClient();
-                    var request = new HttpRequestMessage(HttpMethod.Get, $"{baseUrl}/player/game");
-
-                    request.Headers.Accept.Clear();
-                    request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("*/*"));
-                    request.Headers.Add("x-api-key", apiKey);
-                    HttpResponseMessage response = await client.SendAsync(request);
-
-                    response.EnsureSuccessStatusCode();
-                    string gameJson = await response.Content.ReadAsStringAsync();
-                    GameResponse gameData = JsonUtility.FromJson<GameResponse>(gameJson);
-                    return gameData.data;
+                    using (var webRequest = UnityWebRequest.Get($"{baseUrl}/player/game"))
+                    {
+                        webRequest.SetRequestHeader("x-api-key", apiKey);
+                        var operation = webRequest.SendWebRequest();
+                        while (!operation.isDone)
+                            await Task.Yield();
+                        if (webRequest.result != UnityWebRequest.Result.Success)
+                            throw new System.Exception($"HTTP {webRequest.responseCode}: {webRequest.error}");
+                        string gameJson = webRequest.downloadHandler.text;
+                        GameResponse gameData = JsonUtility.FromJson<GameResponse>(gameJson);
+                        return gameData.data;
+                    }
                 }
-                catch (HttpRequestException e)
+                catch (System.Exception e)
                 {
                     Debug.LogError($"Error GetGameData: {e.Message}");
                     return null;
