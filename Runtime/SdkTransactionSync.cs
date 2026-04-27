@@ -93,6 +93,84 @@ namespace PlaySuperUnity
     }
 
     /// <summary>
+    /// Request body for POST /player/sdk-transactions/commit-by-ids
+    /// </summary>
+    [System.Serializable]
+    internal class CommitByIdsRequest
+    {
+        public string[] transactionIds;
+
+        public CommitByIdsRequest(List<string> ids)
+        {
+            transactionIds = ids.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Inner data from POST /player/sdk-transactions/commit-by-ids
+    /// </summary>
+    [System.Serializable]
+    internal class CommitByIdsData
+    {
+        public bool success;
+        public string[] committed;
+        public string[] alreadyCommitted;
+        public string[] notFound;
+        public string[] failed;
+    }
+
+    /// <summary>
+    /// Response wrapper from POST /player/sdk-transactions/commit-by-ids
+    /// </summary>
+    [System.Serializable]
+    internal class CommitByIdsResponse
+    {
+        public CommitByIdsData data;
+    }
+
+    /// <summary>
+    /// Public result class for CommitSdkTransactionsByIds method
+    /// </summary>
+    [System.Serializable]
+    public class CommitByIdsResult
+    {
+        public bool Success { get; set; }
+        public List<string> Committed { get; set; }
+        public List<string> AlreadyCommitted { get; set; }
+        public List<string> NotFound { get; set; }
+        public List<string> Failed { get; set; }
+
+        public CommitByIdsResult()
+        {
+            Committed = new List<string>();
+            AlreadyCommitted = new List<string>();
+            NotFound = new List<string>();
+            Failed = new List<string>();
+        }
+
+        internal static CommitByIdsResult FromData(CommitByIdsData data)
+        {
+            var result = new CommitByIdsResult
+            {
+                Success = data?.success ?? false,
+                Committed = data?.committed != null ? new List<string>(data.committed) : new List<string>(),
+                AlreadyCommitted = data?.alreadyCommitted != null ? new List<string>(data.alreadyCommitted) : new List<string>(),
+                NotFound = data?.notFound != null ? new List<string>(data.notFound) : new List<string>(),
+                Failed = data?.failed != null ? new List<string>(data.failed) : new List<string>()
+            };
+            return result;
+        }
+
+        /// <summary>
+        /// Returns true if all requested transactions were committed (either now or previously)
+        /// </summary>
+        public bool AllCommitted(int requestedCount)
+        {
+            return Committed.Count + AlreadyCommitted.Count >= requestedCount;
+        }
+    }
+
+    /// <summary>
     /// Wrapper for serializing list of SdkTransactions to JSON
     /// </summary>
     [System.Serializable]
@@ -275,6 +353,39 @@ namespace PlaySuperUnity
         public static bool HasPendingTransactions()
         {
             return GetPendingTransactions().Count > 0;
+        }
+
+        /// <summary>
+        /// Remove specific transactions by their IDs after successful commit-by-ids
+        /// </summary>
+        /// <param name="transactionIds">List of transaction IDs to remove from pending</param>
+        public static void RemoveTransactionsByIds(List<string> transactionIds)
+        {
+            if (transactionIds == null || transactionIds.Count == 0)
+            {
+                return;
+            }
+
+            List<SdkTransaction> pending = GetPendingTransactions();
+            if (pending.Count == 0)
+            {
+                return;
+            }
+
+            // Create a set of IDs to remove for O(1) lookup
+            HashSet<string> idsToRemove = new HashSet<string>(transactionIds);
+
+            // Filter out the committed transactions
+            List<SdkTransaction> remaining = new List<SdkTransaction>();
+            foreach (var txn in pending)
+            {
+                if (!idsToRemove.Contains(txn.id))
+                {
+                    remaining.Add(txn);
+                }
+            }
+
+            SavePendingTransactions(remaining);
         }
 
         /// <summary>

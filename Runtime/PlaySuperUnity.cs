@@ -1483,6 +1483,97 @@ namespace PlaySuperUnity
         }
 
         /// <summary>
+        /// Commit specific transactions by their IDs.
+        /// This is the recommended method for committing transactions as it provides per-transaction granularity.
+        /// Call this after successfully processing each transaction in-game.
+        /// </summary>
+        /// <param name="transactionIds">List of transaction IDs to mark as committed</param>
+        /// <returns>Result containing breakdown of committed, already committed, not found, and failed IDs</returns>
+        /// <example>
+        /// var result = await PlaySuperUnitySDK.CommitSdkTransactionsByIds(new List&lt;string&gt; { "txn_123", "txn_456" });
+        /// if (result.Success) {
+        ///     Debug.Log($"Committed {result.Committed.Count} transactions");
+        /// }
+        /// </example>
+        public static async Task<CommitByIdsResult> CommitSdkTransactionsByIds(List<string> transactionIds)
+        {
+            var emptyResult = new CommitByIdsResult { Success = false };
+
+            if (string.IsNullOrEmpty(authToken))
+            {
+                Debug.LogWarning("[PlaySuper] Cannot commit SDK transactions - user not authenticated");
+                return emptyResult;
+            }
+
+            if (transactionIds == null || transactionIds.Count == 0)
+            {
+                Debug.LogWarning("[PlaySuper] Cannot commit SDK transactions - no transaction IDs provided");
+                return emptyResult;
+            }
+
+            try
+            {
+                CommitByIdsRequest requestBody = new CommitByIdsRequest(transactionIds);
+                string jsonBody = JsonUtility.ToJson(requestBody);
+                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonBody);
+
+                using (var webRequest = new UnityWebRequest($"{baseUrl}/player/sdk-transactions/commit-by-ids", "POST"))
+                {
+                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                    webRequest.downloadHandler = new DownloadHandlerBuffer();
+                    webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.SetRequestHeader("Accept", "application/json");
+                    webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
+
+                    var operation = webRequest.SendWebRequest();
+                    while (!operation.isDone)
+                        await Task.Yield();
+
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        string responseJson = webRequest.downloadHandler.text;
+                        CommitByIdsResponse wrapper = JsonUtility.FromJson<CommitByIdsResponse>(responseJson);
+                        var data = wrapper?.data;
+
+                        if (data != null)
+                        {
+                            var result = CommitByIdsResult.FromData(data);
+
+                            // Remove successfully committed transactions from local storage
+                            List<string> allCommitted = new List<string>();
+                            allCommitted.AddRange(result.Committed);
+                            allCommitted.AddRange(result.AlreadyCommitted);
+
+                            if (allCommitted.Count > 0)
+                            {
+                                SdkTransactionSyncManager.RemoveTransactionsByIds(allCommitted);
+                            }
+
+                            Debug.Log($"[PlaySuper] CommitByIds: {result.Committed.Count} committed, {result.AlreadyCommitted.Count} already committed, {result.NotFound.Count} not found, {result.Failed.Count} failed");
+                            return result;
+                        }
+                        else
+                        {
+                            Debug.LogError("[PlaySuper] Server returned null data in commit-by-ids response");
+                            return emptyResult;
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogError($"[PlaySuper] Error committing SDK transactions by IDs: {webRequest.responseCode} - {webRequest.downloadHandler.text}");
+                        return emptyResult;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[PlaySuper] Exception committing SDK transactions by IDs: {e.Message}");
+                return emptyResult;
+            }
+        }
+
+        /// <summary>
         /// Clear all SDK transaction sync state. Call this on logout.
         /// </summary>
         public static void ClearSdkTransactionSyncState()
