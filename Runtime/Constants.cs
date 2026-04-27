@@ -9,6 +9,11 @@ namespace PlaySuperUnity
             public const string STORE_OPEN = "ps_sdk.store_opened";
             public const string STORE_CLOSE = "ps_sdk.store_closed";
             public const string PLAYER_IDENTIFY = "ps_sdk.player_identified";
+
+            // Transaction events
+            public const string TRANSACTIONS_FETCHED = "ps_sdk.transactions_fetched";
+            public const string TRANSACTIONS_COMMITTED = "ps_sdk.transactions_committed";
+            public const string TRANSACTIONS_COMMIT_FAILED = "ps_sdk.transactions_commit_failed";
         }
 
         // TODO: Add kafka double write for mixpanel events

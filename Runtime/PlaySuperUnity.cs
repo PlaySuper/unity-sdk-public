@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -1339,6 +1340,9 @@ namespace PlaySuperUnity
                             // Fire event for game to handle
                             OnSdkTransactionsReceived?.Invoke(data.transactions);
 
+                            // Track analytics event for transactions fetched
+                            _ = TrackTransactionsFetched(data.transactions);
+
                             return data.transactions;
                         }
                         else
@@ -1440,18 +1444,23 @@ namespace PlaySuperUnity
                             SdkTransactionSyncManager.RemoveProcessedTransactions(lastProcessedTransactionId);
                             SdkTransactionSyncManager.SetLastSyncedCheckpoint(data.newCheckpoint);
 
+                            // Track success using legacy checkpoint method
+                            _ = TrackLegacyCommitSuccess(lastProcessedTransactionId);
+
                             Debug.Log($"[PlaySuper] Successfully committed SDK transactions up to {lastProcessedTransactionId}");
                             return true;
                         }
                         else
                         {
                             Debug.LogError("[PlaySuper] Server returned unsuccessful commit response");
+                            _ = TrackTransactionsCommitFailed(new List<string> { lastProcessedTransactionId }, "unsuccessful_response", 0, "checkpoint");
                             return false;
                         }
                     }
                     else
                     {
                         Debug.LogError($"[PlaySuper] Error committing SDK transactions: {webRequest.responseCode} - {webRequest.downloadHandler.text}");
+                        _ = TrackTransactionsCommitFailed(new List<string> { lastProcessedTransactionId }, webRequest.downloadHandler.text, (int)webRequest.responseCode, "checkpoint");
                         return false;
                     }
                 }
@@ -1459,6 +1468,7 @@ namespace PlaySuperUnity
             catch (Exception e)
             {
                 Debug.LogError($"[PlaySuper] Exception committing SDK transactions: {e.Message}");
+                _ = TrackTransactionsCommitFailed(new List<string> { lastProcessedTransactionId }, e.Message, 0, "checkpoint");
                 return false;
             }
         }
@@ -1550,18 +1560,25 @@ namespace PlaySuperUnity
                                 SdkTransactionSyncManager.RemoveTransactionsByIds(allCommitted);
                             }
 
+                            // Track analytics event for successful commit
+                            _ = TrackTransactionsCommitted(result, transactionIds.Count, "by_ids");
+
                             Debug.Log($"[PlaySuper] CommitByIds: {result.Committed.Count} committed, {result.AlreadyCommitted.Count} already committed, {result.NotFound.Count} not found, {result.Failed.Count} failed");
                             return result;
                         }
                         else
                         {
                             Debug.LogError("[PlaySuper] Server returned null data in commit-by-ids response");
+                            // Track failure
+                            _ = TrackTransactionsCommitFailed(transactionIds, "null_response", 0, "by_ids");
                             return emptyResult;
                         }
                     }
                     else
                     {
                         Debug.LogError($"[PlaySuper] Error committing SDK transactions by IDs: {webRequest.responseCode} - {webRequest.downloadHandler.text}");
+                        // Track failure
+                        _ = TrackTransactionsCommitFailed(transactionIds, webRequest.downloadHandler.text, (int)webRequest.responseCode, "by_ids");
                         return emptyResult;
                     }
                 }
@@ -1569,6 +1586,8 @@ namespace PlaySuperUnity
             catch (Exception e)
             {
                 Debug.LogError($"[PlaySuper] Exception committing SDK transactions by IDs: {e.Message}");
+                // Track failure
+                _ = TrackTransactionsCommitFailed(transactionIds, e.Message, 0, "by_ids");
                 return emptyResult;
             }
         }
@@ -1581,6 +1600,143 @@ namespace PlaySuperUnity
             SdkTransactionSyncManager.ClearAll();
             Debug.Log("[PlaySuper] SDK transaction sync state cleared");
         }
+
+        #region Transaction Analytics Tracking
+
+        /// <summary>
+        /// Track when transactions are fetched from server
+        /// </summary>
+        private static async Task TrackTransactionsFetched(List<SdkTransaction> transactions)
+        {
+            if (transactions == null || transactions.Count == 0) return;
+
+            try
+            {
+                // Calculate totals by type
+                float totalDebit = 0;
+                float totalCredit = 0;
+                string coinId = null;
+                string coinName = null;
+
+                foreach (var txn in transactions)
+                {
+                    if (txn.source == "PURCHASE_DEBIT")
+                    {
+                        totalDebit += txn.amount;
+                    }
+                    else if (txn.source == "REFUND_CREDIT")
+                    {
+                        totalCredit += txn.amount;
+                    }
+
+                    // Capture coin info from first transaction
+                    if (coinId == null && !string.IsNullOrEmpty(txn.coinId))
+                    {
+                        coinId = txn.coinId;
+                        coinName = txn.coinName;
+                    }
+                }
+
+                var transactionIds = new List<string>();
+                foreach (var txn in transactions)
+                {
+                    transactionIds.Add(txn.id);
+                }
+
+                var properties = new Dictionary<string, object>
+                {
+                    { "transaction_count", transactions.Count },
+                    { "transaction_ids", transactionIds },
+                    { "total_debit_amount", totalDebit },
+                    { "total_credit_amount", totalCredit },
+                    { "coinId", coinId },
+                    { "coinName", coinName }
+                };
+
+                await MixPanelManager.SendEvent(Constants.MixpanelEvent.TRANSACTIONS_FETCHED, 0, properties);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PlaySuper] Failed to track transactions_fetched event: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Track when transactions are successfully committed
+        /// </summary>
+        private static async Task TrackTransactionsCommitted(CommitByIdsResult result, int requestedCount, string commitMethod)
+        {
+            try
+            {
+                var properties = new Dictionary<string, object>
+                {
+                    { "requested_count", requestedCount },
+                    { "committed_count", result.Committed.Count },
+                    { "already_committed_count", result.AlreadyCommitted.Count },
+                    { "not_found_count", result.NotFound.Count },
+                    { "failed_count", result.Failed.Count },
+                    { "commit_method", commitMethod },
+                    { "success", result.Success },
+                    { "transaction_ids", result.Committed }
+                };
+
+                await MixPanelManager.SendEvent(Constants.MixpanelEvent.TRANSACTIONS_COMMITTED, 0, properties);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PlaySuper] Failed to track transactions_committed event: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Track when transaction commit fails
+        /// </summary>
+        private static async Task TrackTransactionsCommitFailed(List<string> transactionIds, string errorMessage, int errorCode, string commitMethod)
+        {
+            try
+            {
+                var properties = new Dictionary<string, object>
+                {
+                    { "transaction_count", transactionIds?.Count ?? 0 },
+                    { "transaction_ids", transactionIds },
+                    { "error_message", errorMessage ?? "unknown" },
+                    { "error_code", errorCode },
+                    { "commit_method", commitMethod }
+                };
+
+                await MixPanelManager.SendEvent(Constants.MixpanelEvent.TRANSACTIONS_COMMIT_FAILED, 0, properties);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PlaySuper] Failed to track transactions_commit_failed event: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Track successful commit using legacy checkpoint method
+        /// </summary>
+        private static async Task TrackLegacyCommitSuccess(string lastProcessedTransactionId)
+        {
+            try
+            {
+                // For legacy checkpoint commits, we don't have individual transaction details
+                // Just track the checkpoint ID and method
+                var properties = new Dictionary<string, object>
+                {
+                    { "last_processed_transaction_id", lastProcessedTransactionId },
+                    { "commit_method", "checkpoint" },
+                    { "success", true }
+                };
+
+                await MixPanelManager.SendEvent(Constants.MixpanelEvent.TRANSACTIONS_COMMITTED, 0, properties);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[PlaySuper] Failed to track legacy commit success event: {e.Message}");
+            }
+        }
+
+        #endregion
 
         /// <summary>
         /// Logs out the current player by clearing the auth token, profile, and all
@@ -1961,7 +2117,7 @@ namespace PlaySuperUnity
 
         private static GameData gameData;
 
-        internal static async Task SendEvent(string eventName, long timestamp = 0)
+        internal static async Task SendEvent(string eventName, long timestamp = 0, Dictionary<string, object> customProperties = null)
         {
             try
             {
@@ -2037,6 +2193,38 @@ namespace PlaySuperUnity
                 if (userProps.Count > 0)
                 {
                     properties.AddRange(userProps);
+                }
+
+                // Add custom properties if provided
+                if (customProperties != null)
+                {
+                    foreach (var kvp in customProperties)
+                    {
+                        if (kvp.Value == null) continue;
+
+                        if (kvp.Value is string strValue)
+                        {
+                            properties.Add($@"""{kvp.Key}"": ""{EscapeJsonString(strValue)}""");
+                        }
+                        else if (kvp.Value is bool boolValue)
+                        {
+                            properties.Add($@"""{kvp.Key}"": {boolValue.ToString().ToLower()}");
+                        }
+                        else if (kvp.Value is int || kvp.Value is long || kvp.Value is float || kvp.Value is double)
+                        {
+                            properties.Add($@"""{kvp.Key}"": {kvp.Value}");
+                        }
+                        else if (kvp.Value is string[] strArray)
+                        {
+                            var arrayJson = "[" + string.Join(",", strArray.Select(s => $@"""{EscapeJsonString(s)}""")) + "]";
+                            properties.Add($@"""{kvp.Key}"": {arrayJson}");
+                        }
+                        else if (kvp.Value is List<string> strList)
+                        {
+                            var arrayJson = "[" + string.Join(",", strList.Select(s => $@"""{EscapeJsonString(s)}""")) + "]";
+                            properties.Add($@"""{kvp.Key}"": {arrayJson}");
+                        }
+                    }
                 }
 
                 // Create clean payload
