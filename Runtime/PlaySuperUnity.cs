@@ -1183,12 +1183,12 @@ namespace PlaySuperUnity
 
         internal static string GetResolvedEventBatchUrl()
         {
-            return featureFlags?.GetEventBatchUrl() ?? Constants.MIXPANEL_URL_BATCH;
+            return featureFlags?.GetEventBatchUrl() ?? Constants.PS_ANALYTICS_BATCH_URL;
         }
 
         internal static string GetResolvedEventSingleUrl()
         {
-            return featureFlags?.GetEventSingleUrl() ?? Constants.MIXPANEL_URL;
+            return featureFlags?.GetEventSingleUrl() ?? Constants.PS_ANALYTICS_EVENT_URL;
         }
 
         internal static string GetResolvedPSAnalyticsUrl()
@@ -2235,6 +2235,9 @@ namespace PlaySuperUnity
         {string.Join(",\n        ", properties)}
     }}
 }}";
+
+                // Log full payload for debugging
+                Debug.Log($"[Analytics] Sending event '{eventName}':\n{mixPanelPayload}");
 
                 // Always queue - let the lifecycle manager handle processing
                 MixPanelEventQueue.EnqueueEvent(eventName, actualEventTime, mixPanelPayload);

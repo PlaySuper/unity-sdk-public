@@ -16,14 +16,16 @@ namespace PlaySuperUnity
             public const string TRANSACTIONS_COMMIT_FAILED = "ps_sdk.transactions_commit_failed";
         }
 
-        // TODO: Add kafka double write for mixpanel events
+        // Analytics API endpoints (same as playsuper-store and playsuper-api)
+        internal const string PS_ANALYTICS_URL = "https://analytics.playsuper.club";
+        internal const string PS_ANALYTICS_EVENT_URL = PS_ANALYTICS_URL + "/events/track";
+        internal const string PS_ANALYTICS_BATCH_URL = PS_ANALYTICS_URL + "/events/track/batch";
+
+        // Legacy Lambda URLs (deprecated, kept for fallback)
         internal const string MIXPANEL_URL =
             "https://7ecybbalvlg4pem67c4amx464i0fhpbx.lambda-url.ap-south-1.on.aws/sdk-event";
         internal const string MIXPANEL_URL_BATCH =
             "https://7ecybbalvlg4pem67c4amx464i0fhpbx.lambda-url.ap-south-1.on.aws/sdk-batch";
-
-        internal const string PS_ANALYTICS_URL =
-            "https://analytics.playsuper.club";
 
         internal const string deviceIdName = "device_id";
         internal const string userPropertiesKey = "ps_user_properties";

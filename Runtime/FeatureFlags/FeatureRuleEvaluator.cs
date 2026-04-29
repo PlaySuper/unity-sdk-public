@@ -59,14 +59,8 @@ namespace PlaySuperUnity.FeatureFlags
                 return ruleValue.Value;
             }
 
-            // Try default value
-            var defaultFeatureValue = TryGetDefaultValue(featureDefinition, key, parser);
-            if (defaultFeatureValue.Success)
-            {
-                Debug.Log($"[PlaySuper][FeatureFlags] Feature '{key}' resolved to default value: '{defaultFeatureValue.Value}'");
-                return defaultFeatureValue.Value;
-            }
-
+            // Skip GrowthBook's stored default value - always use our code's default
+            // This ensures we control defaults in code rather than relying on potentially outdated GrowthBook values
             Debug.Log($"[PlaySuper][FeatureFlags] Feature '{key}' using provided default: '{defaultValue}'");
             return defaultValue;
         }

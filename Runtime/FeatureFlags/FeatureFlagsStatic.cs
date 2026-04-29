@@ -30,7 +30,7 @@ namespace PlaySuperUnity.FeatureFlags
         /// </summary>
         public static string GetEventSingleUrl()
         {
-            return instance?.GetEventSingleUrl() ?? Constants.MIXPANEL_URL;
+            return instance?.GetEventSingleUrl() ?? Constants.PS_ANALYTICS_EVENT_URL;
         }
 
         /// <summary>
@@ -38,7 +38,7 @@ namespace PlaySuperUnity.FeatureFlags
         /// </summary>
         public static string GetEventBatchUrl()
         {
-            return instance?.GetEventBatchUrl() ?? Constants.MIXPANEL_URL_BATCH;
+            return instance?.GetEventBatchUrl() ?? Constants.PS_ANALYTICS_BATCH_URL;
         }
 
         /// <summary>

@@ -80,7 +80,7 @@ namespace PlaySuperUnity.FeatureFlags
         /// </summary>
         public string GetEventSingleUrl()
         {
-            return GetStringFeature(EVENT_SINGLE_URL_KEY, Constants.MIXPANEL_URL);
+            return GetStringFeature(EVENT_SINGLE_URL_KEY, Constants.PS_ANALYTICS_EVENT_URL);
         }
 
         /// <summary>
@@ -88,7 +88,7 @@ namespace PlaySuperUnity.FeatureFlags
         /// </summary>
         public string GetEventBatchUrl()
         {
-            return GetStringFeature(EVENT_BATCH_URL_KEY, Constants.MIXPANEL_URL_BATCH);
+            return GetStringFeature(EVENT_BATCH_URL_KEY, Constants.PS_ANALYTICS_BATCH_URL);
         }
 
         /// <summary>

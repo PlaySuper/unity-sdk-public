@@ -15,6 +15,7 @@ namespace PlaySuperUnity
         public long originalTimestamp;
         public string insertId;
         public string payloadJson; // Pre-serialized JSON payload
+        public int retryCount;
 
         public MixPanelEvent(string eventName, long timestamp, string payloadJson)
         {
@@ -22,6 +23,7 @@ namespace PlaySuperUnity
             this.originalTimestamp = timestamp;
             this.insertId = Guid.NewGuid().ToString();
             this.payloadJson = payloadJson;
+            this.retryCount = 0;
         }
     }
 
@@ -68,19 +70,19 @@ namespace PlaySuperUnity
                 while (GetQueueSizeInBytes() > Constants.MAX_QUEUE_SIZE_BYTES && eventQueue.Count > 0)
                 {
                     eventQueue.RemoveAt(0); // Remove oldest (FIFO)
-                    Debug.LogWarning("[MixPanel] Queue exceeded 3MB size limit; dropped oldest event");
+                    Debug.LogWarning("[Analytics] Queue exceeded 3MB size limit; dropped oldest event");
                 }
 
                 // Fallback count-based limit
                 if (eventQueue.Count > Constants.MAX_QUEUE_SIZE)
                 {
                     eventQueue.RemoveAt(0);
-                    Debug.LogWarning("[MixPanel] Queue exceeded max count; dropped oldest event");
+                    Debug.LogWarning("[Analytics] Queue exceeded max count; dropped oldest event");
                 }
 
                 SaveQueueToFile();
             }
-            Debug.Log($"[MixPanel] Event queued: {eventName}, queue size: {GetQueueSize()}, bytes: {GetQueueSizeInBytes()}");
+            Debug.Log($"[Analytics] Event queued: {eventName}, queue size: {GetQueueSize()}, bytes: {GetQueueSizeInBytes()}");
 
             // Always try to process queue when adding an event
             _ = ProcessQueue();
@@ -95,7 +97,7 @@ namespace PlaySuperUnity
             // Quick network check
             if (Application.internetReachability == NetworkReachability.NotReachable)
             {
-                Debug.Log("[MixPanel] No network connectivity, skipping queue processing");
+                Debug.Log("[Analytics] No network connectivity, skipping queue processing");
                 return;
             }
 
@@ -116,7 +118,7 @@ namespace PlaySuperUnity
             bool overallSuccess = true;
 
             Debug.Log(
-                $"[MixPanel] Processing {snapshot.Count} queued events in batches of {Constants.BATCH_SIZE}"
+                $"[Analytics] Processing {snapshot.Count} queued events in batches of {Constants.BATCH_SIZE}"
             );
 
             // Process in batches
@@ -130,7 +132,7 @@ namespace PlaySuperUnity
                 }
 
                 string batchPayload = BuildBatchPayload(batch);
-                SendResult result = await SendBatchToMixPanel(batchPayload);
+                SendResult result = await SendBatchToAnalytics(batchPayload);
 
                 if (result == SendResult.Success)
                 {
@@ -151,7 +153,7 @@ namespace PlaySuperUnity
                 else if (result == SendResult.PermanentFailure)
                 {
                     // Remove permanently failed events - they'll never succeed
-                    Debug.LogError("[MixPanel] Removing permanently failed batch to prevent infinite retries");
+                    Debug.LogError("[Analytics] Removing permanently failed batch to prevent infinite retries");
                     lock (queueLock)
                     {
                         var failedInsertIds = new HashSet<string>();
@@ -166,6 +168,23 @@ namespace PlaySuperUnity
                 }
                 else // TransientFailure
                 {
+                    // Increment retry count on events for next attempt
+                    lock (queueLock)
+                    {
+                        var failedInsertIds = new HashSet<string>();
+                        foreach (var ev in batch)
+                        {
+                            failedInsertIds.Add(ev.insertId);
+                        }
+                        foreach (var ev in eventQueue)
+                        {
+                            if (failedInsertIds.Contains(ev.insertId))
+                            {
+                                ev.retryCount++;
+                            }
+                        }
+                        SaveQueueToFile();
+                    }
                     overallSuccess = false;
                     break; // Stop processing and retry later
                 }
@@ -187,13 +206,13 @@ namespace PlaySuperUnity
                         Mathf.Min(90f, Mathf.Pow(2, retryCount)) + UnityEngine.Random.Range(0f, 1f);
                     nextRetryTime = Time.realtimeSinceStartup + backoff;
                     Debug.LogWarning(
-                        $"[MixPanel] Batch send failed, retry #{retryCount} in {backoff:F1}s"
+                        $"[Analytics] Batch send failed, retry #{retryCount} in {backoff:F1}s"
                     );
                 }
             }
 
             Debug.Log(
-                $"[MixPanel] ProcessQueue complete: sent {sentCount}, remaining {GetQueueSize()}"
+                $"[Analytics] ProcessQueue complete: sent {sentCount}, remaining {GetQueueSize()}"
             );
         }
 
@@ -216,17 +235,38 @@ namespace PlaySuperUnity
                     )
                     {
                         Debug.LogWarning(
-                            $"[MixPanel] Invalid JSON payload for event {ev.eventName}, skipping"
+                            $"[Analytics] Invalid JSON payload for event {ev.eventName}, skipping"
                         );
                         continue;
                     }
 
-                    eventsJsonArray.Add(eventJson.Trim());
+                    // The payloadJson has format: {"event_name": "...", "properties": {...}}
+                    // We need to extract just the inner "properties" object for analytics API
+                    string propertiesJson = ExtractPropertiesFromPayload(eventJson.Trim());
+
+                    if (string.IsNullOrEmpty(propertiesJson))
+                    {
+                        Debug.LogWarning(
+                            $"[Analytics] Could not extract properties from payload for event {ev.eventName}, skipping"
+                        );
+                        continue;
+                    }
+
+                    // Build event in analytics.playsuper.club format
+                    var analyticsEvent = $@"{{
+      ""eventName"": ""{ev.eventName}"",
+      ""properties"": {propertiesJson},
+      ""timestamp"": {ev.originalTimestamp * 1000},
+      ""eventId"": ""{ev.insertId}"",
+      ""retryCount"": {ev.retryCount}
+    }}";
+
+                    eventsJsonArray.Add(analyticsEvent);
                 }
                 catch (Exception ex)
                 {
                     Debug.LogError(
-                        $"[MixPanel] Error processing event {ev.eventName}: {ex.Message}"
+                        $"[Analytics] Error processing event {ev.eventName}: {ex.Message}"
                     );
                     continue;
                 }
@@ -234,25 +274,120 @@ namespace PlaySuperUnity
 
             if (eventsJsonArray.Count == 0)
             {
-                Debug.LogWarning("[MixPanel] No valid events to send in batch");
-                return "[]";
+                Debug.LogWarning("[Analytics] No valid events to send in batch");
+                return "{}";
             }
 
-            // Build proper JSON array
-            var batchJson = "[\n  " + string.Join(",\n  ", eventsJsonArray) + "\n]";
+            // Build payload matching analytics.playsuper.club format
+            var batchJson = $@"{{
+  ""events"": [
+    {string.Join(",\n    ", eventsJsonArray)}
+  ],
+  ""batchMetadata"": {{
+    ""sentAt"": ""{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ss.fffZ}"",
+    ""queueSize"": {GetQueueSize()},
+    ""flushReason"": ""sdk_batch"",
+    ""sdkVersion"": ""unity"",
+    ""platform"": ""{GetPlatform()}""
+  }}
+}}";
 
-            Debug.Log($"[MixPanel] Built batch with {eventsJsonArray.Count} events");
+            // Log event IDs being sent
+            foreach (var ev in batch)
+            {
+                Debug.Log($"[Analytics] Sending event: {ev.eventName} (id: {ev.insertId})");
+            }
+            Debug.Log($"[Analytics] Built batch with {eventsJsonArray.Count} events");
             return batchJson;
         }
 
-        private static async Task<SendResult> SendBatchToMixPanel(string jsonPayload)
+        private static string GetPlatform()
+        {
+#if UNITY_IOS
+            return "ios";
+#elif UNITY_ANDROID
+            return "android";
+#elif UNITY_WEBGL
+            return "webgl";
+#elif UNITY_EDITOR
+            return "editor";
+#else
+            return "unknown";
+#endif
+        }
+
+        /// <summary>
+        /// Extract the "properties" object from a payload JSON string.
+        /// The payload format is: {"event_name": "...", "properties": {...}}
+        /// We need to return just the inner {...} for the properties key.
+        /// </summary>
+        private static string ExtractPropertiesFromPayload(string payloadJson)
         {
             try
             {
-                Debug.Log($"[MixPanel] Sending batch with {jsonPayload.Length} characters");
+                // Find the "properties" key
+                const string propertiesKey = "\"properties\":";
+                int propertiesIndex = payloadJson.IndexOf(propertiesKey);
+
+                if (propertiesIndex == -1)
+                {
+                    // No properties key found, return the entire payload as properties
+                    return payloadJson;
+                }
+
+                // Find the start of the properties object (after "properties":)
+                int startIndex = propertiesIndex + propertiesKey.Length;
+
+                // Skip whitespace
+                while (startIndex < payloadJson.Length && char.IsWhiteSpace(payloadJson[startIndex]))
+                {
+                    startIndex++;
+                }
+
+                if (startIndex >= payloadJson.Length || payloadJson[startIndex] != '{')
+                {
+                    return null;
+                }
+
+                // Find matching closing brace
+                int braceCount = 0;
+                int endIndex = startIndex;
+
+                for (int i = startIndex; i < payloadJson.Length; i++)
+                {
+                    char c = payloadJson[i];
+                    if (c == '{') braceCount++;
+                    else if (c == '}') braceCount--;
+
+                    if (braceCount == 0)
+                    {
+                        endIndex = i;
+                        break;
+                    }
+                }
+
+                if (braceCount != 0)
+                {
+                    return null; // Unbalanced braces
+                }
+
+                return payloadJson.Substring(startIndex, endIndex - startIndex + 1);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Analytics] Error extracting properties: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static async Task<SendResult> SendBatchToAnalytics(string jsonPayload)
+        {
+            try
+            {
+                Debug.Log($"[Analytics] Sending batch with {jsonPayload.Length} characters");
 
                 var endpoint = PlaySuperUnitySDK.GetResolvedEventBatchUrl();
-                Debug.Log($"[MixPanel] Using batch endpoint: {endpoint}");
+                Debug.Log($"[Analytics] Using batch endpoint: {endpoint}");
 
                 using (
                     var request = new UnityEngine.Networking.UnityWebRequest(
@@ -281,7 +416,7 @@ namespace PlaySuperUnity
 
                     if (!operation.isDone)
                     {
-                        Debug.LogError("[MixPanel] Network request exceeded timeout");
+                        Debug.LogError("[Analytics] Network request exceeded timeout");
                         request.Abort();
                         return SendResult.TransientFailure;
                     }
@@ -289,7 +424,7 @@ namespace PlaySuperUnity
                     // Handle different response codes appropriately
                     if (request.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
                     {
-                        Debug.Log($"[MixPanel] Batch sent successfully: {request.responseCode}");
+                        Debug.Log($"[Analytics] Batch sent successfully: {request.responseCode}");
                         return SendResult.Success;
                     }
                     else
@@ -298,18 +433,18 @@ namespace PlaySuperUnity
                         if (request.responseCode >= 400 && request.responseCode < 500)
                         {
                             Debug.LogError(
-                                $"[MixPanel] Permanent error - bad request: {request.responseCode} - {request.error}"
+                                $"[Analytics] Permanent error - bad request: {request.responseCode} - {request.error}"
                             );
-                            Debug.LogError($"[MixPanel] Response: {request.downloadHandler.text}");
+                            Debug.LogError($"[Analytics] Response: {request.downloadHandler.text}");
                             return SendResult.PermanentFailure;
                         }
                         else
                         {
                             Debug.LogWarning(
-                                $"[MixPanel] Transient error: {request.responseCode} - {request.error}"
+                                $"[Analytics] Transient error: {request.responseCode} - {request.error}"
                             );
                             Debug.LogWarning(
-                                $"[MixPanel] Response: {request.downloadHandler.text}"
+                                $"[Analytics] Response: {request.downloadHandler.text}"
                             );
                             return SendResult.TransientFailure;
                         }
@@ -318,7 +453,7 @@ namespace PlaySuperUnity
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[MixPanel] Exception sending batch: {ex.Message}");
+                Debug.LogError($"[Analytics] Exception sending batch: {ex.Message}");
                 return SendResult.TransientFailure;
             }
         }
@@ -346,7 +481,7 @@ namespace PlaySuperUnity
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[MixPanel] Error saving queue to file: {ex.Message}");
+                Debug.LogError($"[Analytics] Error saving queue to file: {ex.Message}");
             }
         }
 
@@ -360,7 +495,7 @@ namespace PlaySuperUnity
                     var wrapper = JsonUtility.FromJson<MixPanelEventListWrapper>(json);
                     eventQueue = wrapper?.events ?? new List<MixPanelEvent>();
 
-                    Debug.Log($"[MixPanel] Loaded {eventQueue.Count} events from file");
+                    Debug.Log($"[Analytics] Loaded {eventQueue.Count} events from file");
                 }
                 else
                 {
@@ -369,7 +504,7 @@ namespace PlaySuperUnity
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[MixPanel] Error loading queue from file: {ex.Message}");
+                Debug.LogError($"[Analytics] Error loading queue from file: {ex.Message}");
                 // Backup corrupted file and start fresh
                 try
                 {
@@ -397,10 +532,10 @@ namespace PlaySuperUnity
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[MixPanel] Error deleting queue file: {ex.Message}");
+                    Debug.LogError($"[Analytics] Error deleting queue file: {ex.Message}");
                 }
             }
-            Debug.Log("[MixPanel] Queue cleared");
+            Debug.Log("[Analytics] Queue cleared");
         }
 
         public static int GetQueueSize()
@@ -444,7 +579,7 @@ namespace PlaySuperUnity
                 if (eventQueue.Count > 0)
                 {
                     Debug.Log(
-                        $"[MixPanel] Disposing with {eventQueue.Count} events - saving to file"
+                        $"[Analytics] Disposing with {eventQueue.Count} events - saving to file"
                     );
                     SaveQueueToFile();
                 }
@@ -458,7 +593,7 @@ namespace PlaySuperUnity
                 nextRetryTime = 0f;
             }
 
-            Debug.Log("[MixPanel] EventQueue disposed");
+            Debug.Log("[Analytics] EventQueue disposed");
         }
 
         public static void Initialize()
