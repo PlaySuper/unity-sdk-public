@@ -112,8 +112,12 @@ namespace PlaySuperUnity.FeatureFlags
         /// </summary>
         public double GetNumberFeature(string key, double defaultValue)
         {
+            // Safe parser that uses TryParse to avoid exceptions from malformed remote values
+            Func<string, double> safeParser = value =>
+                double.TryParse(value, out double result) ? result : defaultValue;
+
             // Try cache first
-            var cachedValue = cache.GetCachedValue(key, defaultValue, value => double.Parse(value));
+            var cachedValue = cache.GetCachedValue(key, defaultValue, safeParser);
             if (cachedValue != defaultValue)
             {
                 return cachedValue;
@@ -130,7 +134,7 @@ namespace PlaySuperUnity.FeatureFlags
             var featureDefinition = GetFeatureDefinition(key);
             if (featureDefinition != null)
             {
-                var evaluatedValue = evaluator.EvaluateFeature(key, defaultValue, featureDefinition, value => double.Parse(value));
+                var evaluatedValue = evaluator.EvaluateFeature(key, defaultValue, featureDefinition, safeParser);
                 cache.UpdateCache(key, evaluatedValue.ToString());
                 return evaluatedValue;
             }
@@ -277,8 +281,12 @@ namespace PlaySuperUnity.FeatureFlags
         /// </summary>
         private bool GetBoolFeature(string key, bool defaultValue)
         {
+            // Safe parser that uses TryParse to avoid exceptions from malformed remote values
+            Func<string, bool> safeParser = value =>
+                bool.TryParse(value, out bool result) ? result : defaultValue;
+
             // Try cache first
-            var cachedValue = cache.GetCachedValue(key, defaultValue, value => bool.Parse(value));
+            var cachedValue = cache.GetCachedValue(key, defaultValue, safeParser);
             if (cachedValue != defaultValue)
             {
                 return cachedValue;
@@ -287,7 +295,7 @@ namespace PlaySuperUnity.FeatureFlags
             if (!isInitialized || evaluator == null)
             {
                 Debug.Log($"[PlaySuper][FeatureFlags] GetBoolFeature({key}): Using default, initialized={isInitialized}");
-                cache.UpdateCache(key, defaultValue.ToString().ToLower());
+                cache.UpdateCache(key, defaultValue.ToString().ToLowerInvariant());
                 return defaultValue;
             }
 
@@ -295,12 +303,12 @@ namespace PlaySuperUnity.FeatureFlags
             var featureDefinition = GetFeatureDefinition(key);
             if (featureDefinition != null)
             {
-                var evaluatedValue = evaluator.EvaluateFeature(key, defaultValue, featureDefinition, value => bool.Parse(value));
-                cache.UpdateCache(key, evaluatedValue.ToString().ToLower());
+                var evaluatedValue = evaluator.EvaluateFeature(key, defaultValue, featureDefinition, safeParser);
+                cache.UpdateCache(key, evaluatedValue.ToString().ToLowerInvariant());
                 return evaluatedValue;
             }
 
-            cache.UpdateCache(key, defaultValue.ToString().ToLower());
+            cache.UpdateCache(key, defaultValue.ToString().ToLowerInvariant());
             return defaultValue;
         }
 

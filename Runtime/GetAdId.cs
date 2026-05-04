@@ -220,17 +220,65 @@ public class GetAdsId : MonoBehaviour
         return isValid;
     }
 
+    // In-memory cache to avoid repeated PlayerPrefs reads
+    private struct AdvertisingIdCache
+    {
+        public string id;
+        public string source;
+        public string platform;
+        public long timestamp;
+        public bool isPopulated;
+    }
+    private static AdvertisingIdCache _memoryCache;
+
+    /// <summary>
+    /// Populates the in-memory cache from PlayerPrefs (call once at startup or after cache write)
+    /// </summary>
+    private static void PopulateMemoryCacheFromPlayerPrefs()
+    {
+        if (PlayerPrefs.HasKey("advertising_id"))
+        {
+            _memoryCache.id = PlayerPrefs.GetString("advertising_id");
+            _memoryCache.source = PlayerPrefs.GetString("advertising_id_source", "");
+            _memoryCache.platform = PlayerPrefs.GetString("advertising_id_platform", "");
+            string timestampStr = PlayerPrefs.GetString("advertising_id_timestamp", "0");
+            long.TryParse(timestampStr, out _memoryCache.timestamp);
+            _memoryCache.isPopulated = true;
+        }
+    }
+
+    /// <summary>
+    /// Check if the in-memory cache is still valid (less than 5 minutes old)
+    /// </summary>
+    private static bool IsMemoryCacheValid()
+    {
+        if (!_memoryCache.isPopulated || _memoryCache.timestamp == 0)
+            return false;
+
+        long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        long secondsDiff = currentTimestamp - _memoryCache.timestamp;
+        return secondsDiff < 300; // 5 minutes
+    }
+
     // Static version
     private static void CacheAdvertisingIdStatic(string adId, string source)
     {
         long currentTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         string platform = GetCurrentPlatform();
 
+        // Update PlayerPrefs
         PlayerPrefs.SetString("advertising_id", adId);
         PlayerPrefs.SetString("advertising_id_source", source);
         PlayerPrefs.SetString("advertising_id_platform", platform);
         PlayerPrefs.SetString("advertising_id_timestamp", currentTimestamp.ToString());
         PlayerPrefsSaveManager.ScheduleSave();
+
+        // Update in-memory cache
+        _memoryCache.id = adId;
+        _memoryCache.source = source;
+        _memoryCache.platform = platform;
+        _memoryCache.timestamp = currentTimestamp;
+        _memoryCache.isPopulated = true;
     }
 
     // Helper method to get current platform
@@ -256,18 +304,17 @@ public class GetAdsId : MonoBehaviour
             return new AdvertisingIdResult("", "disabled", GetCurrentPlatform());
         }
 
-        // Check cache first
-        if (IsCacheValid() &&
-            PlayerPrefs.HasKey("advertising_id") &&
-            PlayerPrefs.HasKey("advertising_id_source") &&
-            PlayerPrefs.HasKey("advertising_id_platform"))
+        // Populate in-memory cache from PlayerPrefs on first access
+        if (!_memoryCache.isPopulated)
         {
-            string cachedId = PlayerPrefs.GetString("advertising_id");
-            string cachedSource = PlayerPrefs.GetString("advertising_id_source");
-            string cachedPlatform = PlayerPrefs.GetString("advertising_id_platform");
+            PopulateMemoryCacheFromPlayerPrefs();
+        }
 
-            Debug.Log($"Using valid cached advertising ID from {cachedSource} on {cachedPlatform}");
-            return new AdvertisingIdResult(cachedId, cachedSource, cachedPlatform);
+        // Check in-memory cache first (avoids PlayerPrefs reads)
+        if (_memoryCache.isPopulated && IsMemoryCacheValid())
+        {
+            Debug.Log($"Using in-memory cached advertising ID from {_memoryCache.source} on {_memoryCache.platform}");
+            return new AdvertisingIdResult(_memoryCache.id, _memoryCache.source, _memoryCache.platform);
         }
 
         // Get fresh data
@@ -307,18 +354,11 @@ public class GetAdsId : MonoBehaviour
 #elif UNITY_ANDROID && !UNITY_EDITOR
         // Return cached value if available, trigger background refresh
         // This avoids blocking the main thread with the JNI call
-        if (PlayerPrefs.HasKey("advertising_id"))
+        if (_memoryCache.isPopulated && !string.IsNullOrEmpty(_memoryCache.id))
         {
-            string cachedId = PlayerPrefs.GetString("advertising_id");
-            string cachedSource = PlayerPrefs.GetString("advertising_id_source", "android_cached");
-            
-            // Trigger background refresh if cache is expired
-            if (!IsCacheValid())
-            {
-                _ = RefreshAndroidAdvertisingIdAsync();
-            }
-            
-            return new AdvertisingIdResult(cachedId, cachedSource, platform);
+            // Trigger background refresh since we got here (cache expired)
+            _ = RefreshAndroidAdvertisingIdAsync();
+            return new AdvertisingIdResult(_memoryCache.id, _memoryCache.source + "_stale", platform);
         }
         
         // No cache at all - trigger background fetch and return empty
