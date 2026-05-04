@@ -3,9 +3,9 @@ using UnityEngine;
 
 namespace PlaySuperUnity
 {
-    internal class MixPanelLifecycleManager : MonoBehaviour
+    internal class AnalyticsLifecycleManager : MonoBehaviour
     {
-        private static MixPanelLifecycleManager instance;
+        private static AnalyticsLifecycleManager instance;
         private Coroutine processLoopCoroutine;
         private bool isRunning = true;
 
@@ -14,8 +14,8 @@ namespace PlaySuperUnity
             if (instance != null)
                 return;
 
-            GameObject go = new GameObject("MixPanelLifecycleManager");
-            instance = go.AddComponent<MixPanelLifecycleManager>();
+            GameObject go = new GameObject("AnalyticsLifecycleManager");
+            instance = go.AddComponent<AnalyticsLifecycleManager>();
             DontDestroyOnLoad(go);
         }
 
@@ -41,9 +41,9 @@ namespace PlaySuperUnity
             {
                 yield return new WaitForSeconds(Constants.PROCESS_INTERVAL);
 
-                if (isRunning && MixPanelEventQueue.HasQueuedEvents())
+                if (isRunning && AnalyticsEventQueue.HasQueuedEvents())
                 {
-                    _ = MixPanelEventQueue.ProcessQueue();
+                    _ = AnalyticsEventQueue.ProcessQueue();
                 }
             }
         }
@@ -66,9 +66,9 @@ namespace PlaySuperUnity
 
         private void TryProcessQueue()
         {
-            if (MixPanelEventQueue.HasQueuedEvents())
+            if (AnalyticsEventQueue.HasQueuedEvents())
             {
-                _ = MixPanelEventQueue.ProcessQueue();
+                _ = AnalyticsEventQueue.ProcessQueue();
             }
         }
 

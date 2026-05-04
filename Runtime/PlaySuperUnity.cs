@@ -178,8 +178,8 @@ namespace PlaySuperUnity
                 _instance = sdkObject.AddComponent<PlaySuperUnitySDK>();
                 DontDestroyOnLoad(sdkObject);
 
-                // Initialize MixPanel lifecycle manager AFTER SDK is ready
-                MixPanelLifecycleManager.Initialize();
+                // Initialize Analytics lifecycle manager AFTER SDK is ready
+                AnalyticsLifecycleManager.Initialize();
 
                 LogPrivacySettings();
                 Debug.Log("PlaySuperUnity initialized with API Key: " + apiKey);
@@ -198,7 +198,7 @@ namespace PlaySuperUnity
             HandlePreviousSessionClose();
 
             // Send game open event
-            MixPanelManager.SendEvent(Constants.MixpanelEvent.GAME_OPEN);
+            AnalyticsManager.SendEvent(Constants.AnalyticsEvent.GAME_OPEN);
         }
 
         /// <summary>
@@ -270,7 +270,7 @@ namespace PlaySuperUnity
                 return;
             }
 
-            MixPanelManager.SetUserProperties(properties);
+            AnalyticsManager.SetUserProperties(properties);
             Debug.Log($"[PlaySuper] User properties set: {properties.Count} properties");
         }
 
@@ -279,7 +279,7 @@ namespace PlaySuperUnity
         /// </summary>
         public static void ClearUserProperties()
         {
-            MixPanelManager.ClearUserProperties();
+            AnalyticsManager.ClearUserProperties();
             Debug.Log("[PlaySuper] User properties cleared");
         }
 
@@ -289,7 +289,7 @@ namespace PlaySuperUnity
         /// <returns>Copy of current user properties dictionary</returns>
         public static Dictionary<string, object> GetUserProperties()
         {
-            return MixPanelManager.GetUserProperties();
+            return AnalyticsManager.GetUserProperties();
         }
 
         #endregion
@@ -304,7 +304,7 @@ namespace PlaySuperUnity
                 string timestamp = PlayerPrefs.GetString(Constants.lastCloseTimestampName);
                 if (long.TryParse(timestamp, out long timestampLong))
                 {
-                    MixPanelManager.SendEvent(Constants.MixpanelEvent.GAME_CLOSE, timestampLong);
+                    AnalyticsManager.SendEvent(Constants.AnalyticsEvent.GAME_CLOSE, timestampLong);
                     PlayerPrefs.SetString(Constants.lastCloseDoneName, "1");
                 }
             }
@@ -335,8 +335,8 @@ namespace PlaySuperUnity
             PlayerPrefsSaveManager.ForceSaveImmediate(); // Flush all pending saves before quit
 
             // Dispose resources to save any pending data
-            MixPanelEventQueue.Dispose();
-            MixPanelManager.Dispose();
+            AnalyticsEventQueue.Dispose();
+            AnalyticsManager.Dispose();
 
             return true; // Allow quit
         }
@@ -553,7 +553,7 @@ namespace PlaySuperUnity
                 {
                     userId = profile.id,
                     timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                    deviceId = MixPanelManager.DeviceId
+                    deviceId = AnalyticsManager.DeviceId
                 };
 
                 var jsonPayload = JsonUtility.ToJson(payload);
@@ -591,7 +591,10 @@ namespace PlaySuperUnity
 
         public void OpenStore(string url = null, string utmContent = null)
         {
-            MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
+            AnalyticsManager.SendEvent(Constants.AnalyticsEvent.STORE_OPEN);
+
+            // Sync any pending local transactions before opening store
+            _ = SyncPendingLocalTransactionsAsync();
 
             if (!IsLoggedIn())
             {
@@ -692,7 +695,7 @@ namespace PlaySuperUnity
                 Debug.LogWarning("[PlaySuper] Failed to fetch profile after login - some features may be unavailable");
             }
 
-            await MixPanelManager.SendEvent(Constants.MixpanelEvent.PLAYER_IDENTIFY);
+            await AnalyticsManager.SendEvent(Constants.AnalyticsEvent.PLAYER_IDENTIFY);
 
             // Send player identification POST request (guards against null profile internally)
             await SendPlayerIdentificationRequest();
@@ -731,6 +734,97 @@ namespace PlaySuperUnity
             // Fetch SDK transactions (purchase debits, refund credits) after authentication
             // This allows games to sync transaction state on login
             _ = FetchSdkTransactionsAfterAuth();
+        }
+
+        /// <summary>
+        /// Sync any pending local transactions (coins earned/spent while offline) to the server.
+        /// Called automatically on app resume and store open.
+        /// Requires: internet connectivity + logged in + pending transactions.
+        /// </summary>
+        private static async Task SyncPendingLocalTransactionsAsync()
+        {
+            // Check prerequisites
+            if (Application.internetReachability == NetworkReachability.NotReachable)
+            {
+                Debug.Log("[PlaySuper] Skipping local transaction sync - no internet");
+                return;
+            }
+
+            if (!IsLoggedIn())
+            {
+                Debug.Log("[PlaySuper] Skipping local transaction sync - not logged in");
+                return;
+            }
+
+            if (!TransactionsManager.HasTransactions())
+            {
+                return; // Nothing to sync
+            }
+
+            Debug.Log("[PlaySuper] Syncing pending local transactions...");
+
+            try
+            {
+                List<Transaction> transactions = TransactionsManager.GetTransactions();
+                Dictionary<string, int> distributeCoinMap = new Dictionary<string, int>();
+                Dictionary<string, int> deductCoinMap = new Dictionary<string, int>();
+
+                foreach (Transaction t in transactions)
+                {
+                    var targetMap = t.type == "deduct" ? deductCoinMap : distributeCoinMap;
+                    if (targetMap.ContainsKey(t.coinId))
+                    {
+                        targetMap[t.coinId] += t.amount;
+                    }
+                    else
+                    {
+                        targetMap.Add(t.coinId, t.amount);
+                    }
+                }
+
+                bool allSucceeded = true;
+
+                foreach (KeyValuePair<string, int> kvp in distributeCoinMap)
+                {
+                    Debug.Log($"[PlaySuper] Syncing distribute: {kvp.Value} of {kvp.Key}");
+                    try
+                    {
+                        await _instance.DistributeCoins(kvp.Key, kvp.Value);
+                    }
+                    catch
+                    {
+                        allSucceeded = false;
+                    }
+                }
+
+                foreach (KeyValuePair<string, int> kvp in deductCoinMap)
+                {
+                    Debug.Log($"[PlaySuper] Syncing deduct: {kvp.Value} of {kvp.Key}");
+                    try
+                    {
+                        await _instance.DeductCoins(kvp.Key, kvp.Value);
+                    }
+                    catch
+                    {
+                        allSucceeded = false;
+                    }
+                }
+
+                // Only clear if all succeeded (DistributeCoins/DeductCoins will re-add on failure)
+                if (allSucceeded)
+                {
+                    TransactionsManager.ClearTransactions();
+                    Debug.Log("[PlaySuper] Local transactions synced successfully");
+                }
+                else
+                {
+                    Debug.LogWarning("[PlaySuper] Some local transactions failed to sync - will retry later");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] Error syncing local transactions: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -1111,10 +1205,10 @@ namespace PlaySuperUnity
             Debug.Log("[PlaySuper] SDK destroying - cleaning up resources");
 
             // Stop transaction polling and reset static flag
-            WebViewManager.StopTransactionPolling();
+            WebView.StopTransactionPolling();
 
-            // Dispose MixPanel resources
-            MixPanelEventQueue.Dispose();
+            // Dispose Analytics resources
+            AnalyticsEventQueue.Dispose();
 
             // Unsubscribe from application events
             Application.wantsToQuit -= OnApplicationWantsToQuit;
@@ -1129,7 +1223,13 @@ namespace PlaySuperUnity
             {
                 Debug.Log("[PlaySuper] App pausing - saving state");
                 PlayerPrefsSaveManager.ForceSaveImmediate(); // Flush any pending debounced saves
-                MixPanelEventQueue.Dispose();
+                AnalyticsEventQueue.Dispose();
+            }
+            else
+            {
+                Debug.Log("[PlaySuper] App resuming - checking for pending transactions");
+                // Sync any pending local transactions when app resumes
+                _ = SyncPendingLocalTransactionsAsync();
             }
         }
 
@@ -1663,7 +1763,7 @@ namespace PlaySuperUnity
                     { "coinName", coinName }
                 };
 
-                await MixPanelManager.SendEvent(Constants.MixpanelEvent.TRANSACTIONS_FETCHED, 0, properties);
+                await AnalyticsManager.SendEvent(Constants.AnalyticsEvent.TRANSACTIONS_FETCHED, 0, properties);
             }
             catch (Exception e)
             {
@@ -1690,7 +1790,7 @@ namespace PlaySuperUnity
                     { "transaction_ids", result.Committed }
                 };
 
-                await MixPanelManager.SendEvent(Constants.MixpanelEvent.TRANSACTIONS_COMMITTED, 0, properties);
+                await AnalyticsManager.SendEvent(Constants.AnalyticsEvent.TRANSACTIONS_COMMITTED, 0, properties);
             }
             catch (Exception e)
             {
@@ -1714,7 +1814,7 @@ namespace PlaySuperUnity
                     { "commit_method", commitMethod }
                 };
 
-                await MixPanelManager.SendEvent(Constants.MixpanelEvent.TRANSACTIONS_COMMIT_FAILED, 0, properties);
+                await AnalyticsManager.SendEvent(Constants.AnalyticsEvent.TRANSACTIONS_COMMIT_FAILED, 0, properties);
             }
             catch (Exception e)
             {
@@ -1738,7 +1838,7 @@ namespace PlaySuperUnity
                     { "success", true }
                 };
 
-                await MixPanelManager.SendEvent(Constants.MixpanelEvent.TRANSACTIONS_COMMITTED, 0, properties);
+                await AnalyticsManager.SendEvent(Constants.AnalyticsEvent.TRANSACTIONS_COMMITTED, 0, properties);
             }
             catch (Exception e)
             {
@@ -1762,7 +1862,7 @@ namespace PlaySuperUnity
             ClearUserProperties();
             ClearSdkTransactionSyncState();
             TransactionsManager.ClearTransactions();
-            MixPanelEventQueue.ClearQueue();
+            AnalyticsEventQueue.ClearQueue();
 
             PlayerPrefsSaveManager.ForceSaveImmediate(); // Critical: must complete before method returns
             Debug.Log("[PlaySuper] Player logged out — all session state cleared");
@@ -1771,7 +1871,7 @@ namespace PlaySuperUnity
         #endregion
     }
 
-    internal class MixPanelManager
+    internal class AnalyticsManager
     {
         private static string _deviceId;
         private static string _advertisingId;
@@ -1804,13 +1904,13 @@ namespace PlaySuperUnity
                         if (parsed != null)
                         {
                             _userProperties = parsed;
-                            Debug.Log($"[MixPanel] Loaded {_userProperties.Count} user properties from storage");
+                            Debug.Log($"[Analytics] Loaded {_userProperties.Count} user properties from storage");
                         }
                     }
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning($"[MixPanel] Failed to load user properties: {e.Message}");
+                    Debug.LogWarning($"[Analytics] Failed to load user properties: {e.Message}");
                     _userProperties = new Dictionary<string, object>();
                 }
             }
@@ -1829,7 +1929,7 @@ namespace PlaySuperUnity
             }
             catch (Exception e)
             {
-                Debug.LogError($"[MixPanel] Failed to save user properties: {e.Message}");
+                Debug.LogError($"[Analytics] Failed to save user properties: {e.Message}");
             }
         }
 
@@ -2250,7 +2350,7 @@ namespace PlaySuperUnity
                 }
 
                 // Create clean payload
-                var mixPanelPayload =
+                var analyticsPayload =
                     $@"{{
     ""event_name"": ""{eventName}"",
     ""properties"": {{
@@ -2259,10 +2359,10 @@ namespace PlaySuperUnity
 }}";
 
                 // Log full payload for debugging
-                Debug.Log($"[Analytics] Sending event '{eventName}':\n{mixPanelPayload}");
+                Debug.Log($"[Analytics] Sending event '{eventName}':\n{analyticsPayload}");
 
                 // Always queue - let the lifecycle manager handle processing
-                MixPanelEventQueue.EnqueueEvent(eventName, actualEventTime, mixPanelPayload);
+                AnalyticsEventQueue.EnqueueEvent(eventName, actualEventTime, analyticsPayload);
             }
             catch (Exception e)
             {
@@ -2285,7 +2385,7 @@ namespace PlaySuperUnity
         ""$insert_id"": ""{Guid.NewGuid()}""
     }}
 }}";
-            MixPanelEventQueue.EnqueueEvent(eventName, fallbackTime, fallbackPayload);
+            AnalyticsEventQueue.EnqueueEvent(eventName, fallbackTime, fallbackPayload);
         }
 
         /// <summary>
@@ -2312,7 +2412,7 @@ namespace PlaySuperUnity
             _advertisingId = null;
             _userProperties.Clear();
 
-            Debug.Log("[MixPanel] Manager disposed");
+            Debug.Log("[Analytics] Manager disposed");
         }
     }
 }

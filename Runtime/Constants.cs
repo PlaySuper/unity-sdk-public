@@ -2,7 +2,7 @@ namespace PlaySuperUnity
 {
     internal static class Constants
     {
-        internal static class MixpanelEvent
+        internal static class AnalyticsEvent
         {
             public const string GAME_OPEN = "ps_sdk.game_opened";
             public const string GAME_CLOSE = "ps_sdk.game_closed";
@@ -39,7 +39,7 @@ namespace PlaySuperUnity
         internal const string devApiUrl = "https://dev.playsuper.club";
         internal const string prodApiUrl = "https://api.playsuper.club";
 
-        // Mixpanel Event Queue
+        // Analytics Event Queue
         internal const float PROCESS_INTERVAL = 30f;
         internal const int MAX_QUEUE_SIZE = 1024;
         internal const int BATCH_SIZE = 128;

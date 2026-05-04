@@ -151,8 +151,8 @@ namespace PlaySuperUnity
                     PlaySuperUnitySDK.NotifyStoreClosed();
 
                     // Fire-and-forget on main thread (SendEvent uses UnityWebRequest internally)
-                    MixPanelManager.SendEvent(
-                        Constants.MixpanelEvent.STORE_CLOSE,
+                    AnalyticsManager.SendEvent(
+                        Constants.AnalyticsEvent.STORE_CLOSE,
                         DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                     );
                     break;
@@ -165,8 +165,8 @@ namespace PlaySuperUnity
                     StartTransactionPolling();
 
                     // Fire-and-forget on main thread (SendEvent uses UnityWebRequest internally)
-                    MixPanelManager.SendEvent(
-                        Constants.MixpanelEvent.STORE_OPEN,
+                    AnalyticsManager.SendEvent(
+                        Constants.AnalyticsEvent.STORE_OPEN,
                         DateTimeOffset.UtcNow.ToUnixTimeSeconds()
                     );
                     break;

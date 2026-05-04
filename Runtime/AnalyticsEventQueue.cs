@@ -9,7 +9,7 @@ using UnityEngine.Networking;
 namespace PlaySuperUnity
 {
     [System.Serializable]
-    internal class MixPanelEvent
+    internal class AnalyticsEvent
     {
         public string eventName;
         public long originalTimestamp;
@@ -17,7 +17,7 @@ namespace PlaySuperUnity
         public string payloadJson; // Pre-serialized JSON payload
         public int retryCount;
 
-        public MixPanelEvent(string eventName, long timestamp, string payloadJson)
+        public AnalyticsEvent(string eventName, long timestamp, string payloadJson)
         {
             this.eventName = eventName;
             this.originalTimestamp = timestamp;
@@ -28,24 +28,30 @@ namespace PlaySuperUnity
     }
 
     [System.Serializable]
-    internal class MixPanelEventListWrapper
+    internal class AnalyticsEventListWrapper
     {
-        public List<MixPanelEvent> events;
+        public List<AnalyticsEvent> events;
 
-        public MixPanelEventListWrapper(List<MixPanelEvent> events)
+        public AnalyticsEventListWrapper(List<AnalyticsEvent> events)
         {
             this.events = events;
         }
     }
 
-    internal class MixPanelEventQueue
+    internal class AnalyticsEventQueue
     {
         private static readonly string QueueFilePath = Path.Combine(
+            Application.persistentDataPath,
+            "analytics_queue.json"
+        );
+
+        // Legacy file path for migration from older SDK versions
+        private static readonly string LegacyQueueFilePath = Path.Combine(
             Application.persistentDataPath,
             "mixpanel_queue.json"
         );
 
-        private static List<MixPanelEvent> eventQueue = new List<MixPanelEvent>();
+        private static List<AnalyticsEvent> eventQueue = new List<AnalyticsEvent>();
         private static bool isProcessing = false;
         private static readonly object queueLock = new object();
 
@@ -60,7 +66,7 @@ namespace PlaySuperUnity
 
         public enum SendResult { Success, TransientFailure, PermanentFailure }
 
-        static MixPanelEventQueue()
+        static AnalyticsEventQueue()
         {
             Initialize();
         }
@@ -69,7 +75,7 @@ namespace PlaySuperUnity
         {
             lock (queueLock)
             {
-                eventQueue.Add(new MixPanelEvent(eventName, timestamp, payloadJson));
+                eventQueue.Add(new AnalyticsEvent(eventName, timestamp, payloadJson));
 
                 // Enforce size limit (3MB) - remove oldest events if exceeded
                 while (GetQueueSizeInBytes() > Constants.MAX_QUEUE_SIZE_BYTES && eventQueue.Count > 0)
@@ -115,10 +121,10 @@ namespace PlaySuperUnity
                 isProcessing = true;
             }
 
-            List<MixPanelEvent> snapshot;
+            List<AnalyticsEvent> snapshot;
             lock (queueLock)
             {
-                snapshot = new List<MixPanelEvent>(eventQueue);
+                snapshot = new List<AnalyticsEvent>(eventQueue);
             }
 
             int sentCount = 0;
@@ -133,7 +139,7 @@ namespace PlaySuperUnity
             for (int i = 0; i < snapshot.Count; i += Constants.BATCH_SIZE)
             {
                 int batchCount = Mathf.Min(Constants.BATCH_SIZE, snapshot.Count - i);
-                var batch = new List<MixPanelEvent>();
+                var batch = new List<AnalyticsEvent>();
                 for (int j = 0; j < batchCount; j++)
                 {
                     batch.Add(snapshot[i + j]);
@@ -230,7 +236,7 @@ namespace PlaySuperUnity
             );
         }
 
-        private static string BuildBatchPayload(List<MixPanelEvent> batch)
+        private static string BuildBatchPayload(List<AnalyticsEvent> batch)
         {
             var eventsJsonArray = new List<string>();
 
@@ -477,15 +483,15 @@ namespace PlaySuperUnity
         /// </summary>
         private static void SaveQueueToFile()
         {
-            List<MixPanelEvent> snapshot;
+            List<AnalyticsEvent> snapshot;
             lock (queueLock)
             {
-                snapshot = new List<MixPanelEvent>(eventQueue);
+                snapshot = new List<AnalyticsEvent>(eventQueue);
             }
 
             try
             {
-                var wrapper = new MixPanelEventListWrapper(snapshot);
+                var wrapper = new AnalyticsEventListWrapper(snapshot);
                 string json = JsonUtility.ToJson(wrapper);
                 string tmpPath = QueueFilePath + ".tmp";
 
@@ -539,27 +545,30 @@ namespace PlaySuperUnity
         /// </summary>
         private static async Task SaveQueueToFileAsync()
         {
-            List<MixPanelEvent> snapshot;
+            List<AnalyticsEvent> snapshot;
+            bool isEmpty;
             lock (queueLock)
             {
-                if (eventQueue.Count == 0)
+                isEmpty = eventQueue.Count == 0;
+                snapshot = isEmpty ? null : new List<AnalyticsEvent>(eventQueue);
+            }
+
+            if (isEmpty)
+            {
+                // Clear file if queue is empty (outside lock)
+                try
                 {
-                    // Clear file if queue is empty
-                    try
+                    await Task.Run(() =>
                     {
-                        await Task.Run(() =>
-                        {
-                            if (File.Exists(QueueFilePath))
-                                File.Delete(QueueFilePath);
-                        });
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[Analytics] Failed to delete empty queue file: {ex.Message}");
-                    }
-                    return;
+                        if (File.Exists(QueueFilePath))
+                            File.Delete(QueueFilePath);
+                    });
                 }
-                snapshot = new List<MixPanelEvent>(eventQueue);
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[Analytics] Failed to delete empty queue file: {ex.Message}");
+                }
+                return;
             }
 
             // Perform I/O on background thread to avoid ANR
@@ -567,7 +576,7 @@ namespace PlaySuperUnity
             {
                 try
                 {
-                    var wrapper = new MixPanelEventListWrapper(snapshot);
+                    var wrapper = new AnalyticsEventListWrapper(snapshot);
                     string json = JsonUtility.ToJson(wrapper);
                     string tmpPath = QueueFilePath + ".tmp";
 
@@ -601,17 +610,20 @@ namespace PlaySuperUnity
         {
             try
             {
+                // First try to migrate from legacy file if it exists
+                MigrateLegacyQueueFile();
+
                 if (File.Exists(QueueFilePath))
                 {
                     string json = File.ReadAllText(QueueFilePath);
-                    var wrapper = JsonUtility.FromJson<MixPanelEventListWrapper>(json);
-                    eventQueue = wrapper?.events ?? new List<MixPanelEvent>();
+                    var wrapper = JsonUtility.FromJson<AnalyticsEventListWrapper>(json);
+                    eventQueue = wrapper?.events ?? new List<AnalyticsEvent>();
 
                     Debug.Log($"[Analytics] Loaded {eventQueue.Count} events from file");
                 }
                 else
                 {
-                    eventQueue = new List<MixPanelEvent>();
+                    eventQueue = new List<AnalyticsEvent>();
                 }
             }
             catch (Exception ex)
@@ -629,7 +641,71 @@ namespace PlaySuperUnity
                 {
                     Debug.LogWarning($"[Analytics] Failed to backup corrupted queue file: {backupEx.Message}");
                 }
-                eventQueue = new List<MixPanelEvent>();
+                eventQueue = new List<AnalyticsEvent>();
+            }
+        }
+
+        /// <summary>
+        /// Migrate events from legacy mixpanel_queue.json to new analytics_queue.json.
+        /// This runs once on upgrade - merges any pending events and deletes the old file.
+        /// </summary>
+        private static void MigrateLegacyQueueFile()
+        {
+            try
+            {
+                if (!File.Exists(LegacyQueueFilePath))
+                    return;
+
+                Debug.Log("[Analytics] Found legacy queue file, migrating...");
+
+                string legacyJson = File.ReadAllText(LegacyQueueFilePath);
+                var legacyWrapper = JsonUtility.FromJson<AnalyticsEventListWrapper>(legacyJson);
+                var legacyEvents = legacyWrapper?.events;
+
+                if (legacyEvents != null && legacyEvents.Count > 0)
+                {
+                    // Load existing new queue if any
+                    List<AnalyticsEvent> existingEvents = new List<AnalyticsEvent>();
+                    if (File.Exists(QueueFilePath))
+                    {
+                        string existingJson = File.ReadAllText(QueueFilePath);
+                        var existingWrapper = JsonUtility.FromJson<AnalyticsEventListWrapper>(existingJson);
+                        existingEvents = existingWrapper?.events ?? new List<AnalyticsEvent>();
+                    }
+
+                    // Merge: add legacy events that aren't duplicates (by insertId)
+                    var existingIds = new HashSet<string>();
+                    foreach (var ev in existingEvents)
+                    {
+                        existingIds.Add(ev.insertId);
+                    }
+
+                    int migratedCount = 0;
+                    foreach (var legacyEvent in legacyEvents)
+                    {
+                        if (!existingIds.Contains(legacyEvent.insertId))
+                        {
+                            existingEvents.Add(legacyEvent);
+                            migratedCount++;
+                        }
+                    }
+
+                    // Save merged events to new file
+                    var mergedWrapper = new AnalyticsEventListWrapper(existingEvents);
+                    string mergedJson = JsonUtility.ToJson(mergedWrapper);
+                    File.WriteAllText(QueueFilePath, mergedJson);
+
+                    Debug.Log($"[Analytics] Migrated {migratedCount} events from legacy queue");
+                }
+
+                // Delete legacy file after successful migration
+                File.Delete(LegacyQueueFilePath);
+                Debug.Log("[Analytics] Legacy queue file deleted");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Analytics] Failed to migrate legacy queue: {ex.Message}");
+                // Don't fail startup - just log and continue
             }
         }
 
