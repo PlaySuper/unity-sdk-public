@@ -269,7 +269,7 @@ namespace PlaySuperUnity
             Debug.Log("[PlaySuper] Transaction polling started");
         }
 
-        private static void StopTransactionPolling()
+        internal static void StopTransactionPolling()
         {
             isPollingTransactions = false;
             if (pollingCoroutine != null && PlaySuperUnitySDK.Instance != null)

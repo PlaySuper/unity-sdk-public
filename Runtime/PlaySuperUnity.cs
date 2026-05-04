@@ -1110,6 +1110,9 @@ namespace PlaySuperUnity
         {
             Debug.Log("[PlaySuper] SDK destroying - cleaning up resources");
 
+            // Stop transaction polling and reset static flag
+            WebViewManager.StopTransactionPolling();
+
             // Dispose MixPanel resources
             MixPanelEventQueue.Dispose();
 
