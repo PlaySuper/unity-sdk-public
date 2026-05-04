@@ -790,6 +790,11 @@ namespace PlaySuperUnity
                     {
                         string coinJson = webRequest.downloadHandler.text;
                         CoinResponse coinData = JsonUtility.FromJson<CoinResponse>(coinJson);
+                        if (coinData?.data == null)
+                        {
+                            Debug.LogError("[PlaySuper] Failed to parse coin data");
+                            return null;
+                        }
                         List<Transaction> transactionList = GetLocalTransactions();
                         List<CoinBalance> balances = new List<CoinBalance>();
                         foreach (Coin c in coinData.data)
@@ -832,7 +837,7 @@ namespace PlaySuperUnity
                     {
                         string fundsJson = webRequest.downloadHandler.text;
                         FundResponse fundsData = JsonUtility.FromJson<FundResponse>(fundsJson);
-                        if (fundsData.data != null)
+                        if (fundsData?.data != null)
                         {
                             foreach (PlayerCoin pc in fundsData.data)
                             {
