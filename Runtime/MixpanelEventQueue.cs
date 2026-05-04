@@ -53,6 +53,11 @@ namespace PlaySuperUnity
         private static int retryCount = 0;
         private static float nextRetryTime = 0f;
 
+        // Save coalescing - prevents multiple rapid disk writes
+        private static bool savePending = false;
+        private static readonly object saveLock = new object();
+        private const int SAVE_DELAY_MS = 100; // Coalesce saves within 100ms
+
         public enum SendResult { Success, TransientFailure, PermanentFailure }
 
         static MixPanelEventQueue()
@@ -79,9 +84,11 @@ namespace PlaySuperUnity
                     eventQueue.RemoveAt(0);
                     Debug.LogWarning("[Analytics] Queue exceeded max count; dropped oldest event");
                 }
-
-                SaveQueueToFile();
             }
+
+            // Schedule async save OUTSIDE the lock to avoid blocking
+            ScheduleSave();
+
             Debug.Log($"[Analytics] Event queued: {eventName}, queue size: {GetQueueSize()}, bytes: {GetQueueSizeInBytes()}");
 
             // Always try to process queue when adding an event
@@ -116,6 +123,7 @@ namespace PlaySuperUnity
 
             int sentCount = 0;
             bool overallSuccess = true;
+            bool queueModified = false;  // Track if we need to save
 
             Debug.Log(
                 $"[Analytics] Processing {snapshot.Count} queued events in batches of {Constants.BATCH_SIZE}"
@@ -146,8 +154,8 @@ namespace PlaySuperUnity
                             successfulInsertIds.Add(ev.insertId);
                         }
                         eventQueue.RemoveAll(ev => successfulInsertIds.Contains(ev.insertId));
-                        SaveQueueToFile();
                     }
+                    queueModified = true;
                     retryCount = 0; // Reset on success
                 }
                 else if (result == SendResult.PermanentFailure)
@@ -162,8 +170,8 @@ namespace PlaySuperUnity
                             failedInsertIds.Add(ev.insertId);
                         }
                         eventQueue.RemoveAll(ev => failedInsertIds.Contains(ev.insertId));
-                        SaveQueueToFile();
                     }
+                    queueModified = true;
                     // Continue processing other batches
                 }
                 else // TransientFailure
@@ -183,8 +191,8 @@ namespace PlaySuperUnity
                                 ev.retryCount++;
                             }
                         }
-                        SaveQueueToFile();
                     }
+                    queueModified = true;
                     overallSuccess = false;
                     break; // Stop processing and retry later
                 }
@@ -192,6 +200,12 @@ namespace PlaySuperUnity
                 // Small delay between batches (~100ms at 60fps)
                 for (int f = 0; f < 6; f++)
                     await Task.Yield();
+            }
+
+            // Single save at end of processing (instead of per-batch)
+            if (queueModified)
+            {
+                ScheduleSave();
             }
 
             lock (queueLock)
@@ -458,6 +472,9 @@ namespace PlaySuperUnity
             }
         }
 
+        /// <summary>
+        /// Synchronous save - only used for critical saves (Dispose, app quit)
+        /// </summary>
         private static void SaveQueueToFile()
         {
             List<MixPanelEvent> snapshot;
@@ -483,6 +500,98 @@ namespace PlaySuperUnity
             {
                 Debug.LogError($"[Analytics] Error saving queue to file: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Schedule a coalesced async save. Multiple rapid calls result in a single disk write.
+        /// This prevents ANR by moving I/O off the main thread.
+        /// </summary>
+        private static void ScheduleSave()
+        {
+            lock (saveLock)
+            {
+                if (savePending) return;  // Already scheduled
+                savePending = true;
+            }
+
+            _ = CoalescedSaveAsync();
+        }
+
+        /// <summary>
+        /// Waits briefly to coalesce rapid save requests, then performs async save.
+        /// </summary>
+        private static async Task CoalescedSaveAsync()
+        {
+            // Wait to coalesce multiple rapid events
+            await Task.Delay(SAVE_DELAY_MS);
+
+            lock (saveLock)
+            {
+                savePending = false;
+            }
+
+            await SaveQueueToFileAsync();
+        }
+
+        /// <summary>
+        /// Async version that runs file I/O on a background thread.
+        /// Safe to call from main thread - will not cause ANR.
+        /// </summary>
+        private static async Task SaveQueueToFileAsync()
+        {
+            List<MixPanelEvent> snapshot;
+            lock (queueLock)
+            {
+                if (eventQueue.Count == 0)
+                {
+                    // Clear file if queue is empty
+                    try
+                    {
+                        await Task.Run(() =>
+                        {
+                            if (File.Exists(QueueFilePath))
+                                File.Delete(QueueFilePath);
+                        });
+                    }
+                    catch { }
+                    return;
+                }
+                snapshot = new List<MixPanelEvent>(eventQueue);
+            }
+
+            // Perform I/O on background thread to avoid ANR
+            await Task.Run(() =>
+            {
+                try
+                {
+                    var wrapper = new MixPanelEventListWrapper(snapshot);
+                    string json = JsonUtility.ToJson(wrapper);
+                    string tmpPath = QueueFilePath + ".tmp";
+
+                    File.WriteAllText(tmpPath, json);
+                    if (File.Exists(QueueFilePath))
+                    {
+                        File.Delete(QueueFilePath);
+                    }
+                    File.Move(tmpPath, QueueFilePath);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[Analytics] Error in async save: {ex.Message}");
+                }
+            });
+        }
+
+        /// <summary>
+        /// Force an immediate synchronous save. Use sparingly - only for critical data before app quit.
+        /// </summary>
+        private static void ForceSaveImmediate()
+        {
+            lock (saveLock)
+            {
+                savePending = false;  // Cancel any pending async save
+            }
+            SaveQueueToFile();
         }
 
         private static void LoadQueueFromFile()
@@ -573,17 +682,22 @@ namespace PlaySuperUnity
 
         public static void Dispose()
         {
+            // Force immediate save before disposing (synchronous, blocks until complete)
+            // This ensures no data loss on app quit
+            int eventCount;
             lock (queueLock)
             {
-                // Save any remaining events before disposing
-                if (eventQueue.Count > 0)
-                {
-                    Debug.Log(
-                        $"[Analytics] Disposing with {eventQueue.Count} events - saving to file"
-                    );
-                    SaveQueueToFile();
-                }
+                eventCount = eventQueue.Count;
+            }
 
+            if (eventCount > 0)
+            {
+                Debug.Log($"[Analytics] Disposing with {eventCount} events - forcing immediate save");
+                ForceSaveImmediate();
+            }
+
+            lock (queueLock)
+            {
                 // Clear in-memory queue
                 eventQueue.Clear();
 
