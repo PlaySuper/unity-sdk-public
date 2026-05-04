@@ -2110,7 +2110,7 @@ namespace PlaySuperUnity
             {
                 if (PlaySuperUnitySDK.IsLoggedIn())
                 {
-                    return PlaySuperUnitySDK.GetProfileData().id;
+                    return PlaySuperUnitySDK.GetProfileData()?.id;
                 }
                 else
                     return null;
