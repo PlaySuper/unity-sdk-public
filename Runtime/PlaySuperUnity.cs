@@ -2132,8 +2132,20 @@ namespace PlaySuperUnity
                     gameData = await GameManager.GetGameData();
                 }
 
+                // Guard against failed fetch - skip event if we have no game data
+                if (gameData == null)
+                {
+                    Debug.LogWarning("[PlaySuper] Cannot send event - game data unavailable");
+                    return;
+                }
+
                 // Get IP address (with fallback)
                 string ipAddress = await NetworkUtils.GetPublicIPAddress();
+
+                // Safe accessors for nested properties (studio/organization may be null)
+                string studioOrgId = gameData.studio?.organizationId ?? "";
+                string studioName = gameData.studio?.organization?.name ?? "";
+                string studioHandle = gameData.studio?.organization?.handle ?? "";
 
                 // Build properties list
                 var properties = new List<string>
@@ -2156,9 +2168,9 @@ namespace PlaySuperUnity
                     $@"""gameId"": ""{gameData.id}""",
                     $@"""gameName"": ""{gameData.name}""",
                     $@"""studioId"": ""{gameData.studioId}""",
-                    $@"""studioOrganizationId"": ""{gameData.studio.organizationId}""",
-                    $@"""studioName"": ""{gameData.studio.organization.name}""",
-                    $@"""studioHandle"": ""{gameData.studio.organization.handle}""",
+                    $@"""studioOrganizationId"": ""{studioOrgId}""",
+                    $@"""studioName"": ""{studioName}""",
+                    $@"""studioHandle"": ""{studioHandle}""",
                 };
 
                 // Before adding advertising ID to properties
