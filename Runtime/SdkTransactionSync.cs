@@ -214,7 +214,7 @@ namespace PlaySuperUnity
         public static void SetHasVisitedStore(bool visited)
         {
             PlayerPrefs.SetInt(HAS_VISITED_STORE_KEY, visited ? 1 : 0);
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ScheduleSave();
         }
 
         /// <summary>
@@ -238,7 +238,7 @@ namespace PlaySuperUnity
             {
                 PlayerPrefs.SetString(LAST_SYNCED_CHECKPOINT_KEY, transactionId);
             }
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ScheduleSave();
         }
 
         /// <summary>
@@ -284,7 +284,7 @@ namespace PlaySuperUnity
                 string json = JsonUtility.ToJson(wrapper);
                 PlayerPrefs.SetString(PENDING_TRANSACTIONS_KEY, json);
             }
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ScheduleSave();
         }
 
         /// <summary>
@@ -397,7 +397,7 @@ namespace PlaySuperUnity
             PlayerPrefs.DeleteKey(PENDING_TRANSACTIONS_KEY);
             PlayerPrefs.DeleteKey(LAST_SYNCED_CHECKPOINT_KEY);
             PlayerPrefs.DeleteKey(HAS_VISITED_STORE_KEY);
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ForceSaveImmediate(); // Critical: must complete before method returns
         }
     }
 }

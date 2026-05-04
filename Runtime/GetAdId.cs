@@ -187,7 +187,7 @@ public class GetAdsId : MonoBehaviour
         PlayerPrefs.SetString("advertising_id_source", source);
         PlayerPrefs.SetString("advertising_id_platform", platform);
         PlayerPrefs.SetString("advertising_id_timestamp", currentTimestamp.ToString());
-        PlayerPrefs.Save();
+        PlayerPrefsSaveManager.ScheduleSave();
 
         Debug.Log($"Cached advertising ID from {source} on {platform} at {currentTimestamp}");
     }
@@ -230,7 +230,7 @@ public class GetAdsId : MonoBehaviour
         PlayerPrefs.SetString("advertising_id_source", source);
         PlayerPrefs.SetString("advertising_id_platform", platform);
         PlayerPrefs.SetString("advertising_id_timestamp", currentTimestamp.ToString());
-        PlayerPrefs.Save();
+        PlayerPrefsSaveManager.ScheduleSave();
     }
 
     // Helper method to get current platform

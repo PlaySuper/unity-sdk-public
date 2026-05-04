@@ -20,7 +20,7 @@ namespace PlaySuperUnity
             TransactionListWrapper wrapper = new TransactionListWrapper(transactionList);
             string json = JsonUtility.ToJson(wrapper);
             PlayerPrefs.SetString(saveKey, json);
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ScheduleSave();
         }
 
         public static void ClearTransactions()

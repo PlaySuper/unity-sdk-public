@@ -231,7 +231,7 @@ namespace PlaySuperUnity
             PlayerPrefs.DeleteKey("advertising_id_source");
             PlayerPrefs.DeleteKey("advertising_id_platform");
             PlayerPrefs.DeleteKey("advertising_id_timestamp");
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ScheduleSave();
 
             LogPrivacySettings();
             Debug.Log("[PlaySuper] Advertising ID collection DISABLED and cache cleared");
@@ -332,6 +332,7 @@ namespace PlaySuperUnity
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()
             );
             PlayerPrefs.SetString(Constants.lastCloseDoneName, "0");
+            PlayerPrefsSaveManager.ForceSaveImmediate(); // Flush all pending saves before quit
 
             // Dispose resources to save any pending data
             MixPanelEventQueue.Dispose();
@@ -515,7 +516,7 @@ namespace PlaySuperUnity
                         {
                             authToken = loginResponse.access_token;
                             PlayerPrefs.SetString("authToken", authToken);
-                            PlayerPrefs.Save();
+                            PlayerPrefsSaveManager.ScheduleSave();
                             profile = await ProfileManager.GetProfileData();
                             Debug.Log("[PlaySuper] Federated login succeeded");
                         }
@@ -906,7 +907,7 @@ namespace PlaySuperUnity
             {
                 authToken = token;
                 PlayerPrefs.SetString("authToken", token);
-                PlayerPrefs.Save();
+                PlayerPrefsSaveManager.ScheduleSave();
                 // Fetch and set the profile for this token
                 profile = await ProfileManager.GetProfileData();
             }
@@ -1119,6 +1120,7 @@ namespace PlaySuperUnity
             if (pauseStatus)
             {
                 Debug.Log("[PlaySuper] App pausing - saving state");
+                PlayerPrefsSaveManager.ForceSaveImmediate(); // Flush any pending debounced saves
                 MixPanelEventQueue.Dispose();
             }
         }
@@ -1754,7 +1756,7 @@ namespace PlaySuperUnity
             TransactionsManager.ClearTransactions();
             MixPanelEventQueue.ClearQueue();
 
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ForceSaveImmediate(); // Critical: must complete before method returns
             Debug.Log("[PlaySuper] Player logged out — all session state cleared");
         }
 
@@ -1815,7 +1817,7 @@ namespace PlaySuperUnity
             {
                 string json = SerializeUserPropertiesToJson();
                 PlayerPrefs.SetString(Constants.userPropertiesKey, json);
-                PlayerPrefs.Save();
+                PlayerPrefsSaveManager.ScheduleSave();
             }
             catch (Exception e)
             {
@@ -1964,7 +1966,7 @@ namespace PlaySuperUnity
             EnsureUserPropertiesLoaded();
             _userProperties.Clear();
             PlayerPrefs.DeleteKey(Constants.userPropertiesKey);
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ScheduleSave();
         }
 
         internal static Dictionary<string, object> GetUserProperties()
