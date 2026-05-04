@@ -593,6 +593,9 @@ namespace PlaySuperUnity
         {
             MixPanelManager.SendEvent(Constants.MixpanelEvent.STORE_OPEN);
 
+            // Sync any pending local transactions before opening store
+            _ = SyncPendingLocalTransactionsAsync();
+
             if (!IsLoggedIn())
             {
                 Debug.LogWarning("[PlaySuper] Opening store without valid auth token - user may need to login");
@@ -731,6 +734,97 @@ namespace PlaySuperUnity
             // Fetch SDK transactions (purchase debits, refund credits) after authentication
             // This allows games to sync transaction state on login
             _ = FetchSdkTransactionsAfterAuth();
+        }
+
+        /// <summary>
+        /// Sync any pending local transactions (coins earned/spent while offline) to the server.
+        /// Called automatically on app resume and store open.
+        /// Requires: internet connectivity + logged in + pending transactions.
+        /// </summary>
+        private static async Task SyncPendingLocalTransactionsAsync()
+        {
+            // Check prerequisites
+            if (Application.internetReachability == NetworkReachability.NotReachable)
+            {
+                Debug.Log("[PlaySuper] Skipping local transaction sync - no internet");
+                return;
+            }
+
+            if (!IsLoggedIn())
+            {
+                Debug.Log("[PlaySuper] Skipping local transaction sync - not logged in");
+                return;
+            }
+
+            if (!TransactionsManager.HasTransactions())
+            {
+                return; // Nothing to sync
+            }
+
+            Debug.Log("[PlaySuper] Syncing pending local transactions...");
+
+            try
+            {
+                List<Transaction> transactions = TransactionsManager.GetTransactions();
+                Dictionary<string, int> distributeCoinMap = new Dictionary<string, int>();
+                Dictionary<string, int> deductCoinMap = new Dictionary<string, int>();
+
+                foreach (Transaction t in transactions)
+                {
+                    var targetMap = t.type == "deduct" ? deductCoinMap : distributeCoinMap;
+                    if (targetMap.ContainsKey(t.coinId))
+                    {
+                        targetMap[t.coinId] += t.amount;
+                    }
+                    else
+                    {
+                        targetMap.Add(t.coinId, t.amount);
+                    }
+                }
+
+                bool allSucceeded = true;
+
+                foreach (KeyValuePair<string, int> kvp in distributeCoinMap)
+                {
+                    Debug.Log($"[PlaySuper] Syncing distribute: {kvp.Value} of {kvp.Key}");
+                    try
+                    {
+                        await _instance.DistributeCoins(kvp.Key, kvp.Value);
+                    }
+                    catch
+                    {
+                        allSucceeded = false;
+                    }
+                }
+
+                foreach (KeyValuePair<string, int> kvp in deductCoinMap)
+                {
+                    Debug.Log($"[PlaySuper] Syncing deduct: {kvp.Value} of {kvp.Key}");
+                    try
+                    {
+                        await _instance.DeductCoins(kvp.Key, kvp.Value);
+                    }
+                    catch
+                    {
+                        allSucceeded = false;
+                    }
+                }
+
+                // Only clear if all succeeded (DistributeCoins/DeductCoins will re-add on failure)
+                if (allSucceeded)
+                {
+                    TransactionsManager.ClearTransactions();
+                    Debug.Log("[PlaySuper] Local transactions synced successfully");
+                }
+                else
+                {
+                    Debug.LogWarning("[PlaySuper] Some local transactions failed to sync - will retry later");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] Error syncing local transactions: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -1130,6 +1224,12 @@ namespace PlaySuperUnity
                 Debug.Log("[PlaySuper] App pausing - saving state");
                 PlayerPrefsSaveManager.ForceSaveImmediate(); // Flush any pending debounced saves
                 MixPanelEventQueue.Dispose();
+            }
+            else
+            {
+                Debug.Log("[PlaySuper] App resuming - checking for pending transactions");
+                // Sync any pending local transactions when app resumes
+                _ = SyncPendingLocalTransactionsAsync();
             }
         }
 
