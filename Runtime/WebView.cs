@@ -208,10 +208,22 @@ namespace PlaySuperUnity
 
                         try
                         {
-                            // Extract the token
+                            // Extract the token - expected format: {"accessToken":"<token>"}
                             int startIndex = 14;
+                            if (data.Length <= startIndex)
+                            {
+                                Debug.LogWarning("[PlaySuper] Token data too short to parse");
+                                break;
+                            }
+
                             int endIndex = data.IndexOf("\"", startIndex);
-                            string token = data.Substring(startIndex, endIndex - startIndex - 1);
+                            if (endIndex < startIndex)
+                            {
+                                Debug.LogWarning("[PlaySuper] Invalid token format - closing quote not found");
+                                break;
+                            }
+
+                            string token = data.Substring(startIndex, endIndex - startIndex);
 
                             Debug.Log("Token received"); // Don't log the actual token
 
