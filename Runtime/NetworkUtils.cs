@@ -12,6 +12,11 @@ namespace PlaySuperUnity
         private static bool lastConnectivityResult = false;
         private static readonly TimeSpan CONNECTIVITY_CACHE_DURATION = TimeSpan.FromSeconds(5);
 
+        // Cached local IP to avoid repeated DNS lookups
+        private static string cachedLocalIP = null;
+        private static DateTime lastIPCacheTime = DateTime.MinValue;
+        private static readonly TimeSpan IP_CACHE_DURATION = TimeSpan.FromMinutes(5);
+
         /// <summary>
         /// Quick network availability check with caching to avoid excessive calls
         /// </summary>
@@ -111,20 +116,93 @@ namespace PlaySuperUnity
                 == NetworkReachability.ReachableViaCarrierDataNetwork;
         }
 
+        /// <summary>
+        /// Get local IP address - returns cached value to avoid blocking.
+        /// Use GetIPAddressAsync() for fresh results.
+        /// </summary>
         public static string GetIPAddress()
         {
+            // Return cached value if available and not expired
+            if (!string.IsNullOrEmpty(cachedLocalIP) &&
+                DateTime.UtcNow - lastIPCacheTime < IP_CACHE_DURATION)
+            {
+                return cachedLocalIP;
+            }
+
+            // Return cached value even if expired (to avoid blocking)
+            // Trigger background refresh
+            if (!string.IsNullOrEmpty(cachedLocalIP))
+            {
+                _ = RefreshLocalIPAsync();
+                return cachedLocalIP;
+            }
+
+            // No cache at all - return default, trigger background fetch
+            _ = RefreshLocalIPAsync();
+            return "0.0.0.0";
+        }
+
+        /// <summary>
+        /// Async version that runs DNS lookup on a background thread.
+        /// Safe to await from main thread - will not cause ANR.
+        /// </summary>
+        public static async Task<string> GetIPAddressAsync()
+        {
+            // Return cached value if valid
+            if (!string.IsNullOrEmpty(cachedLocalIP) &&
+                DateTime.UtcNow - lastIPCacheTime < IP_CACHE_DURATION)
+            {
+                return cachedLocalIP;
+            }
+
             try
             {
-                var host = Dns.GetHostEntry(Dns.GetHostName());
-                var addr = host.AddressList.FirstOrDefault(f =>
-                    f.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
-                );
-                return addr != null ? addr.ToString() : "0.0.0.0";
+                // Run DNS lookup on background thread to avoid ANR
+                string ip = await Task.Run(() =>
+                {
+                    var host = Dns.GetHostEntry(Dns.GetHostName());
+                    var addr = host.AddressList.FirstOrDefault(f =>
+                        f.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                    );
+                    return addr?.ToString() ?? "0.0.0.0";
+                });
+
+                // Cache the result
+                cachedLocalIP = ip;
+                lastIPCacheTime = DateTime.UtcNow;
+
+                return ip;
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[NetworkUtils] GetIPAddress failed: {ex.Message}");
-                return "0.0.0.0";
+                Debug.LogWarning($"[NetworkUtils] GetIPAddressAsync failed: {ex.Message}");
+                return cachedLocalIP ?? "0.0.0.0";
+            }
+        }
+
+        /// <summary>
+        /// Refreshes the cached local IP address in the background.
+        /// </summary>
+        private static async Task RefreshLocalIPAsync()
+        {
+            try
+            {
+                string ip = await Task.Run(() =>
+                {
+                    var host = Dns.GetHostEntry(Dns.GetHostName());
+                    var addr = host.AddressList.FirstOrDefault(f =>
+                        f.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                    );
+                    return addr?.ToString() ?? "0.0.0.0";
+                });
+
+                cachedLocalIP = ip;
+                lastIPCacheTime = DateTime.UtcNow;
+                Debug.Log($"[NetworkUtils] Local IP refreshed: {ip}");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[NetworkUtils] Background IP refresh failed: {ex.Message}");
             }
         }
 
@@ -157,14 +235,16 @@ namespace PlaySuperUnity
                         Debug.LogWarning(
                             $"[NetworkUtils] Failed to get public IP: {request.error}"
                         );
-                        return GetIPAddress(); // Fallback to local IP
+                        // Use async fallback instead of blocking sync call
+                        return await GetIPAddressAsync();
                     }
                 }
             }
             catch (Exception ex)
             {
                 Debug.LogError($"[NetworkUtils] Error getting public IP: {ex.Message}");
-                return GetIPAddress(); // Fallback to local IP
+                // Use async fallback instead of blocking sync call
+                return await GetIPAddressAsync();
             }
         }
     }

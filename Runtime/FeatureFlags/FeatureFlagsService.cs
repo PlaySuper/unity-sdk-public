@@ -346,29 +346,34 @@ namespace PlaySuperUnity.FeatureFlags
         }
 
         /// <summary>
-        /// Background refresh loop — runs on the main thread via Task.Yield().
-        /// Must NOT use Task.Run or Task.Delay, which would move execution
-        /// to a thread pool thread where Unity APIs are unavailable.
+        /// Background refresh loop — waits using Task.Delay to avoid per-frame CPU overhead.
+        /// The await continuation runs on Unity's main thread via SynchronizationContext.
         /// </summary>
         private async Task BackgroundRefreshLoop(CancellationToken cancellationToken)
         {
+            const int CHECK_INTERVAL_MS = 1000; // Check every 1 second instead of every frame
+
             try
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    // Wait for refresh interval using main-thread-safe yield
-                    float waitUntil = Time.realtimeSinceStartup + Constants.GROWTHBOOK_REFRESH_INTERVAL_SECONDS;
-                    while (Time.realtimeSinceStartup < waitUntil)
+                    // Wait for refresh interval using 1-second delays (not per-frame yields)
+                    int waitSeconds = Constants.GROWTHBOOK_REFRESH_INTERVAL_SECONDS;
+                    while (waitSeconds > 0 && !cancellationToken.IsCancellationRequested)
                     {
-                        if (cancellationToken.IsCancellationRequested) return;
-                        await Task.Yield();
+                        await Task.Delay(CHECK_INTERVAL_MS, cancellationToken);
+                        waitSeconds--;
                     }
 
-                    if (cache.ShouldRefresh())
+                    if (!cancellationToken.IsCancellationRequested && cache.ShouldRefresh())
                     {
                         await RefreshFeaturesFromApi();
                     }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when cancellation is requested
             }
             catch (Exception ex)
             {

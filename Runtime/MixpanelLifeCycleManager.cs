@@ -6,6 +6,8 @@ namespace PlaySuperUnity
     internal class MixPanelLifecycleManager : MonoBehaviour
     {
         private static MixPanelLifecycleManager instance;
+        private Coroutine processLoopCoroutine;
+        private bool isRunning = true;
 
         public static void Initialize()
         {
@@ -19,16 +21,27 @@ namespace PlaySuperUnity
 
         void Start()
         {
-            StartCoroutine(ProcessLoop());
+            isRunning = true;
+            processLoopCoroutine = StartCoroutine(ProcessLoop());
+        }
+
+        void OnDestroy()
+        {
+            isRunning = false;
+            if (processLoopCoroutine != null)
+            {
+                StopCoroutine(processLoopCoroutine);
+                processLoopCoroutine = null;
+            }
         }
 
         IEnumerator ProcessLoop()
         {
-            while (true)
+            while (isRunning)
             {
                 yield return new WaitForSeconds(Constants.PROCESS_INTERVAL);
 
-                if (MixPanelEventQueue.HasQueuedEvents())
+                if (isRunning && MixPanelEventQueue.HasQueuedEvents())
                 {
                     _ = MixPanelEventQueue.ProcessQueue();
                 }

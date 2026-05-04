@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
 using System.Collections;
+using System.Threading.Tasks;
 using PlaySuperUnity;
 
 public class GetAdsId : MonoBehaviour
@@ -109,14 +110,23 @@ public class GetAdsId : MonoBehaviour
         yield return null;
     }
 
-    // Fixed Android implementation
+    // Fixed Android implementation - now uses async to avoid blocking main thread
     private IEnumerator GetAndroidAdvertisingId()
     {
         Debug.Log("Getting Android advertising identifier...");
 
+        // Start async task on background thread
+        var task = GetAndroidAdvertisingIdAsync();
+
+        // Wait for task to complete without blocking main thread
+        while (!task.IsCompleted)
+        {
+            yield return null;
+        }
+
         try
         {
-            adsid = GetAndroidAdvertisingIdSync();
+            adsid = task.Result;
 
             if (!string.IsNullOrEmpty(adsid))
             {
@@ -130,6 +140,12 @@ public class GetAdsId : MonoBehaviour
                 adsidSource = "android_error";
             }
         }
+        catch (AggregateException ae)
+        {
+            Debug.LogError($"Error getting Android advertising ID: {ae.InnerException?.Message ?? ae.Message}");
+            adsid = "";
+            adsidSource = "android_error";
+        }
         catch (Exception ex)
         {
             Debug.LogError($"Error getting Android advertising ID: {ex.Message}");
@@ -139,6 +155,15 @@ public class GetAdsId : MonoBehaviour
 
         CacheAdvertisingId(adsid, adsidSource);
         yield return null;
+    }
+
+    /// <summary>
+    /// Async version that runs the blocking JNI call on a background thread.
+    /// Safe to await from main thread - will not cause ANR.
+    /// </summary>
+    private static Task<string> GetAndroidAdvertisingIdAsync()
+    {
+        return Task.Run(() => GetAndroidAdvertisingIdSync());
     }
 
     // Editor mock implementation
@@ -162,7 +187,7 @@ public class GetAdsId : MonoBehaviour
         PlayerPrefs.SetString("advertising_id_source", source);
         PlayerPrefs.SetString("advertising_id_platform", platform);
         PlayerPrefs.SetString("advertising_id_timestamp", currentTimestamp.ToString());
-        PlayerPrefs.Save();
+        PlayerPrefsSaveManager.ScheduleSave();
 
         Debug.Log($"Cached advertising ID from {source} on {platform} at {currentTimestamp}");
     }
@@ -205,7 +230,7 @@ public class GetAdsId : MonoBehaviour
         PlayerPrefs.SetString("advertising_id_source", source);
         PlayerPrefs.SetString("advertising_id_platform", platform);
         PlayerPrefs.SetString("advertising_id_timestamp", currentTimestamp.ToString());
-        PlayerPrefs.Save();
+        PlayerPrefsSaveManager.ScheduleSave();
     }
 
     // Helper method to get current platform
@@ -280,11 +305,26 @@ public class GetAdsId : MonoBehaviour
         return new AdvertisingIdResult(id, resultSource, platform);
         
 #elif UNITY_ANDROID && !UNITY_EDITOR
-        string id = GetAndroidAdvertisingIdSync();
-        string source = string.IsNullOrEmpty(id) ? "android_error" : "android";
+        // Return cached value if available, trigger background refresh
+        // This avoids blocking the main thread with the JNI call
+        if (PlayerPrefs.HasKey("advertising_id"))
+        {
+            string cachedId = PlayerPrefs.GetString("advertising_id");
+            string cachedSource = PlayerPrefs.GetString("advertising_id_source", "android_cached");
+            
+            // Trigger background refresh if cache is expired
+            if (!IsCacheValid())
+            {
+                _ = RefreshAndroidAdvertisingIdAsync();
+            }
+            
+            return new AdvertisingIdResult(cachedId, cachedSource, platform);
+        }
         
-        CacheAdvertisingIdStatic(id, source);
-        return new AdvertisingIdResult(id, source, platform);
+        // No cache at all - trigger background fetch and return empty
+        // The next call will have the cached value
+        _ = RefreshAndroidAdvertisingIdAsync();
+        return new AdvertisingIdResult("", "android_pending", platform);
         
 #elif UNITY_EDITOR
         string id = "mock-ad-id-for-testing-" + SystemInfo.deviceUniqueIdentifier;
@@ -358,6 +398,25 @@ public class GetAdsId : MonoBehaviour
         }
 
         return advertisingID;
+    }
+
+    /// <summary>
+    /// Refreshes the Android advertising ID in the background without blocking the main thread.
+    /// Results are cached in PlayerPrefs for subsequent calls.
+    /// </summary>
+    private static async Task RefreshAndroidAdvertisingIdAsync()
+    {
+        try
+        {
+            string id = await GetAndroidAdvertisingIdAsync();
+            string source = string.IsNullOrEmpty(id) ? "android_error" : "android";
+            CacheAdvertisingIdStatic(id, source);
+            Debug.Log($"[PlaySuper] Background ad ID refresh complete: {(string.IsNullOrEmpty(id) ? "empty" : "success")}");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[PlaySuper] Background ad ID refresh failed: {ex.Message}");
+        }
     }
 
     public static void GetAdvertisingIdAsync(System.Action<AdvertisingIdResult> callback)

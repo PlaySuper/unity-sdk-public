@@ -231,7 +231,7 @@ namespace PlaySuperUnity
             PlayerPrefs.DeleteKey("advertising_id_source");
             PlayerPrefs.DeleteKey("advertising_id_platform");
             PlayerPrefs.DeleteKey("advertising_id_timestamp");
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ScheduleSave();
 
             LogPrivacySettings();
             Debug.Log("[PlaySuper] Advertising ID collection DISABLED and cache cleared");
@@ -332,6 +332,7 @@ namespace PlaySuperUnity
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()
             );
             PlayerPrefs.SetString(Constants.lastCloseDoneName, "0");
+            PlayerPrefsSaveManager.ForceSaveImmediate(); // Flush all pending saves before quit
 
             // Dispose resources to save any pending data
             MixPanelEventQueue.Dispose();
@@ -515,7 +516,7 @@ namespace PlaySuperUnity
                         {
                             authToken = loginResponse.access_token;
                             PlayerPrefs.SetString("authToken", authToken);
-                            PlayerPrefs.Save();
+                            PlayerPrefsSaveManager.ScheduleSave();
                             profile = await ProfileManager.GetProfileData();
                             Debug.Log("[PlaySuper] Federated login succeeded");
                         }
@@ -789,6 +790,11 @@ namespace PlaySuperUnity
                     {
                         string coinJson = webRequest.downloadHandler.text;
                         CoinResponse coinData = JsonUtility.FromJson<CoinResponse>(coinJson);
+                        if (coinData?.data == null)
+                        {
+                            Debug.LogError("[PlaySuper] Failed to parse coin data");
+                            return null;
+                        }
                         List<Transaction> transactionList = GetLocalTransactions();
                         List<CoinBalance> balances = new List<CoinBalance>();
                         foreach (Coin c in coinData.data)
@@ -831,7 +837,7 @@ namespace PlaySuperUnity
                     {
                         string fundsJson = webRequest.downloadHandler.text;
                         FundResponse fundsData = JsonUtility.FromJson<FundResponse>(fundsJson);
-                        if (fundsData.data != null)
+                        if (fundsData?.data != null)
                         {
                             foreach (PlayerCoin pc in fundsData.data)
                             {
@@ -906,7 +912,7 @@ namespace PlaySuperUnity
             {
                 authToken = token;
                 PlayerPrefs.SetString("authToken", token);
-                PlayerPrefs.Save();
+                PlayerPrefsSaveManager.ScheduleSave();
                 // Fetch and set the profile for this token
                 profile = await ProfileManager.GetProfileData();
             }
@@ -1104,6 +1110,9 @@ namespace PlaySuperUnity
         {
             Debug.Log("[PlaySuper] SDK destroying - cleaning up resources");
 
+            // Stop transaction polling and reset static flag
+            WebViewManager.StopTransactionPolling();
+
             // Dispose MixPanel resources
             MixPanelEventQueue.Dispose();
 
@@ -1119,6 +1128,7 @@ namespace PlaySuperUnity
             if (pauseStatus)
             {
                 Debug.Log("[PlaySuper] App pausing - saving state");
+                PlayerPrefsSaveManager.ForceSaveImmediate(); // Flush any pending debounced saves
                 MixPanelEventQueue.Dispose();
             }
         }
@@ -1200,7 +1210,7 @@ namespace PlaySuperUnity
         {
             if (string.IsNullOrEmpty(url)) return false;
             if (!url.StartsWith("https://")) return false;
-            try { var _ = new Uri(url); return true; } catch { return false; }
+            return Uri.TryCreate(url, UriKind.Absolute, out _);
         }
 
         private static void ApplyFlags(SdkFlagsResponse flags)
@@ -1754,7 +1764,7 @@ namespace PlaySuperUnity
             TransactionsManager.ClearTransactions();
             MixPanelEventQueue.ClearQueue();
 
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ForceSaveImmediate(); // Critical: must complete before method returns
             Debug.Log("[PlaySuper] Player logged out — all session state cleared");
         }
 
@@ -1815,7 +1825,7 @@ namespace PlaySuperUnity
             {
                 string json = SerializeUserPropertiesToJson();
                 PlayerPrefs.SetString(Constants.userPropertiesKey, json);
-                PlayerPrefs.Save();
+                PlayerPrefsSaveManager.ScheduleSave();
             }
             catch (Exception e)
             {
@@ -1964,7 +1974,7 @@ namespace PlaySuperUnity
             EnsureUserPropertiesLoaded();
             _userProperties.Clear();
             PlayerPrefs.DeleteKey(Constants.userPropertiesKey);
-            PlayerPrefs.Save();
+            PlayerPrefsSaveManager.ScheduleSave();
         }
 
         internal static Dictionary<string, object> GetUserProperties()
@@ -2108,7 +2118,7 @@ namespace PlaySuperUnity
             {
                 if (PlaySuperUnitySDK.IsLoggedIn())
                 {
-                    return PlaySuperUnitySDK.GetProfileData().id;
+                    return PlaySuperUnitySDK.GetProfileData()?.id;
                 }
                 else
                     return null;
@@ -2130,8 +2140,20 @@ namespace PlaySuperUnity
                     gameData = await GameManager.GetGameData();
                 }
 
+                // Guard against failed fetch - skip event if we have no game data
+                if (gameData == null)
+                {
+                    Debug.LogWarning("[PlaySuper] Cannot send event - game data unavailable");
+                    return;
+                }
+
                 // Get IP address (with fallback)
                 string ipAddress = await NetworkUtils.GetPublicIPAddress();
+
+                // Safe accessors for nested properties (studio/organization may be null)
+                string studioOrgId = gameData.studio?.organizationId ?? "";
+                string studioName = gameData.studio?.organization?.name ?? "";
+                string studioHandle = gameData.studio?.organization?.handle ?? "";
 
                 // Build properties list
                 var properties = new List<string>
@@ -2154,9 +2176,9 @@ namespace PlaySuperUnity
                     $@"""gameId"": ""{gameData.id}""",
                     $@"""gameName"": ""{gameData.name}""",
                     $@"""studioId"": ""{gameData.studioId}""",
-                    $@"""studioOrganizationId"": ""{gameData.studio.organizationId}""",
-                    $@"""studioName"": ""{gameData.studio.organization.name}""",
-                    $@"""studioHandle"": ""{gameData.studio.organization.handle}""",
+                    $@"""studioOrganizationId"": ""{studioOrgId}""",
+                    $@"""studioName"": ""{studioName}""",
+                    $@"""studioHandle"": ""{studioHandle}""",
                 };
 
                 // Before adding advertising ID to properties
