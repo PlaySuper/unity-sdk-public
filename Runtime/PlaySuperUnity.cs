@@ -1210,7 +1210,7 @@ namespace PlaySuperUnity
         {
             if (string.IsNullOrEmpty(url)) return false;
             if (!url.StartsWith("https://")) return false;
-            try { var _ = new Uri(url); return true; } catch { return false; }
+            return Uri.TryCreate(url, UriKind.Absolute, out _);
         }
 
         private static void ApplyFlags(SdkFlagsResponse flags)

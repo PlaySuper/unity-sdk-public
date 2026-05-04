@@ -553,7 +553,10 @@ namespace PlaySuperUnity
                                 File.Delete(QueueFilePath);
                         });
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[Analytics] Failed to delete empty queue file: {ex.Message}");
+                    }
                     return;
                 }
                 snapshot = new List<MixPanelEvent>(eventQueue);
@@ -622,7 +625,10 @@ namespace PlaySuperUnity
                         File.Move(QueueFilePath, QueueFilePath + ".corrupted");
                     }
                 }
-                catch { }
+                catch (Exception backupEx)
+                {
+                    Debug.LogWarning($"[Analytics] Failed to backup corrupted queue file: {backupEx.Message}");
+                }
                 eventQueue = new List<MixPanelEvent>();
             }
         }
