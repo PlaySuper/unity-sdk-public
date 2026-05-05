@@ -197,8 +197,8 @@ namespace PlaySuperUnity
             // Handle previous session close event
             HandlePreviousSessionClose();
 
-            // Send game open event
-            AnalyticsManager.SendEvent(Constants.AnalyticsEvent.GAME_OPEN);
+            // Send game open event (fire-and-forget)
+            _ = AnalyticsManager.SendEvent(Constants.AnalyticsEvent.GAME_OPEN);
         }
 
         /// <summary>
@@ -304,7 +304,7 @@ namespace PlaySuperUnity
                 string timestamp = PlayerPrefs.GetString(Constants.lastCloseTimestampName);
                 if (long.TryParse(timestamp, out long timestampLong))
                 {
-                    AnalyticsManager.SendEvent(Constants.AnalyticsEvent.GAME_CLOSE, timestampLong);
+                    _ = AnalyticsManager.SendEvent(Constants.AnalyticsEvent.GAME_CLOSE, timestampLong);
                     PlayerPrefs.SetString(Constants.lastCloseDoneName, "1");
                 }
             }
@@ -591,7 +591,7 @@ namespace PlaySuperUnity
 
         public void OpenStore(string url = null, string utmContent = null)
         {
-            AnalyticsManager.SendEvent(Constants.AnalyticsEvent.STORE_OPEN);
+            _ = AnalyticsManager.SendEvent(Constants.AnalyticsEvent.STORE_OPEN);
 
             // Sync any pending local transactions before opening store
             _ = SyncPendingLocalTransactionsAsync();
