@@ -80,6 +80,7 @@ namespace PlaySuperUnity
             public string userId;
             public long timestamp;
             public string deviceId;
+            public string gameId;
         }
 
         [System.Serializable]
@@ -191,6 +192,8 @@ namespace PlaySuperUnity
                 if (hadExistingToken)
                 {
                     _ = FetchSdkTransactionsAfterAuth();
+                    // Fetch profile and send identification for returning users (fire-and-forget)
+                    _ = FetchProfileAndIdentify();
                 }
             }
 
@@ -519,6 +522,9 @@ namespace PlaySuperUnity
                             PlayerPrefsSaveManager.ScheduleSave();
                             profile = await ProfileManager.GetProfileData();
                             Debug.Log("[PlaySuper] Federated login succeeded");
+
+                            // Send player identification request after successful login (fire-and-forget)
+                            _ = SendPlayerIdentificationRequest();
                         }
                         else
                         {
@@ -538,6 +544,25 @@ namespace PlaySuperUnity
             }
         }
 
+        private static async Task FetchProfileAndIdentify()
+        {
+            try
+            {
+                profile = await ProfileManager.GetProfileData();
+                if (profile != null && _instance != null)
+                {
+                    await _instance.SendPlayerIdentificationRequest();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] Failed to fetch profile and identify on init: {ex.Message}");
+            }
+        }
+
+        private const int IDENTIFY_MAX_RETRIES = 5;
+        private const int IDENTIFY_BASE_DELAY_MS = 1000;
+
         private async Task SendPlayerIdentificationRequest()
         {
             if (string.IsNullOrEmpty(authToken) || profile == null)
@@ -546,42 +571,62 @@ namespace PlaySuperUnity
                 return;
             }
 
-            try
+            var payload = new PlayerIdentificationPayload
             {
-                // Build the payload with player and game information
-                var payload = new PlayerIdentificationPayload
-                {
-                    userId = profile.id,
-                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
-                    deviceId = AnalyticsManager.DeviceId
-                };
+                userId = profile.id,
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                deviceId = AnalyticsManager.DeviceId,
+                gameId = gameData?.id ?? ""
+            };
 
-                var jsonPayload = JsonUtility.ToJson(payload);
-                var url = $"{GetResolvedPSAnalyticsUrl()}/events/identify-user";
-                byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
-                using (var webRequest = new UnityWebRequest(url, "POST"))
+            var jsonPayload = JsonUtility.ToJson(payload);
+            var url = $"{GetResolvedPSAnalyticsUrl()}/events/identify-user";
+
+            for (int attempt = 0; attempt < IDENTIFY_MAX_RETRIES; attempt++)
+            {
+                try
                 {
-                    webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
-                    webRequest.downloadHandler = new DownloadHandlerBuffer();
-                    webRequest.SetRequestHeader("Content-Type", "application/json");
-                    webRequest.SetRequestHeader("Accept", "application/json");
-                    var operation = webRequest.SendWebRequest();
-                    while (!operation.isDone)
-                        await Task.Yield();
-                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    byte[] bodyRaw = Encoding.UTF8.GetBytes(jsonPayload);
+                    using (var webRequest = new UnityWebRequest(url, "POST"))
                     {
-                        Debug.Log("[PlaySuper] Player identification request sent successfully: " + webRequest.downloadHandler.text);
-                    }
-                    else
-                    {
-                        Debug.LogWarning($"[PlaySuper] Player identification request failed: {webRequest.responseCode} - {webRequest.error}");
+                        webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
+                        webRequest.downloadHandler = new DownloadHandlerBuffer();
+                        webRequest.SetRequestHeader("Content-Type", "application/json");
+                        webRequest.SetRequestHeader("Accept", "application/json");
+                        var operation = webRequest.SendWebRequest();
+                        while (!operation.isDone)
+                            await Task.Yield();
+
+                        if (webRequest.result == UnityWebRequest.Result.Success)
+                        {
+                            Debug.Log("[PlaySuper] Player identification request sent successfully: " + webRequest.downloadHandler.text);
+                            return;
+                        }
+
+                        // Don't retry on client errors (4xx) except 429
+                        if (webRequest.responseCode >= 400 && webRequest.responseCode < 500 && webRequest.responseCode != 429)
+                        {
+                            Debug.LogWarning($"[PlaySuper] Player identification request failed (no retry): {webRequest.responseCode} - {webRequest.error}");
+                            return;
+                        }
+
+                        Debug.LogWarning($"[PlaySuper] Player identification request failed (attempt {attempt + 1}/{IDENTIFY_MAX_RETRIES}): {webRequest.responseCode} - {webRequest.error}");
                     }
                 }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[PlaySuper] Player identification request error (attempt {attempt + 1}/{IDENTIFY_MAX_RETRIES}): {ex.Message}");
+                }
+
+                // Exponential backoff before retry
+                if (attempt < IDENTIFY_MAX_RETRIES - 1)
+                {
+                    int delayMs = IDENTIFY_BASE_DELAY_MS * (1 << attempt); // 1s, 2s, 4s
+                    await Task.Delay(delayMs);
+                }
             }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[PlaySuper] Error sending player identification request: {ex.Message}");
-            }
+
+            Debug.LogError("[PlaySuper] Player identification request failed after all retries");
         }
 
         public void OpenStore()
@@ -697,8 +742,8 @@ namespace PlaySuperUnity
 
             await AnalyticsManager.SendEvent(Constants.AnalyticsEvent.PLAYER_IDENTIFY);
 
-            // Send player identification POST request (guards against null profile internally)
-            await SendPlayerIdentificationRequest();
+            // Send player identification POST request (fire-and-forget, guards against null profile internally)
+            _ = SendPlayerIdentificationRequest();
 
             // Process pending transactions
             if (TransactionsManager.HasTransactions())
@@ -1009,6 +1054,8 @@ namespace PlaySuperUnity
                 PlayerPrefsSaveManager.ScheduleSave();
                 // Fetch and set the profile for this token
                 profile = await ProfileManager.GetProfileData();
+                // Send player identification (fire-and-forget)
+                _ = _instance.SendPlayerIdentificationRequest();
             }
             catch (Exception ex)
             {
@@ -1863,6 +1910,7 @@ namespace PlaySuperUnity
             ClearSdkTransactionSyncState();
             TransactionsManager.ClearTransactions();
             AnalyticsEventQueue.ClearQueue();
+            AnalyticsManager.ResetDeviceId();
 
             PlayerPrefsSaveManager.ForceSaveImmediate(); // Critical: must complete before method returns
             Debug.Log("[PlaySuper] Player logged out — all session state cleared");
@@ -2153,6 +2201,18 @@ namespace PlaySuperUnity
                 PlayerPrefs.SetString(Constants.deviceIdName, value);
             }
         }
+
+        /// <summary>
+        /// Generate a new device ID. Call this on logout to prevent identity collision
+        /// when a different user logs in on the same device.
+        /// </summary>
+        internal static void ResetDeviceId()
+        {
+            DeviceId = Guid.NewGuid().ToString();
+            PlayerPrefsSaveManager.ScheduleSave();
+            Debug.Log("[Analytics] Device ID reset for new session");
+        }
+
         internal static string AdvertisingId
         {
             get

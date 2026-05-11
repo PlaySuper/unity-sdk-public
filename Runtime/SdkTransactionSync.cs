@@ -397,7 +397,7 @@ namespace PlaySuperUnity
             PlayerPrefs.DeleteKey(PENDING_TRANSACTIONS_KEY);
             PlayerPrefs.DeleteKey(LAST_SYNCED_CHECKPOINT_KEY);
             PlayerPrefs.DeleteKey(HAS_VISITED_STORE_KEY);
-            PlayerPrefsSaveManager.ForceSaveImmediate(); // Critical: must complete before method returns
+            PlayerPrefsSaveManager.ScheduleSave(); // Caller (Logout) handles final ForceSaveImmediate
         }
     }
 }
