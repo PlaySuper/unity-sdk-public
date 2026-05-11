@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Gpm.WebView;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace PlaySuperUnity
 {
@@ -12,6 +13,8 @@ namespace PlaySuperUnity
         private static ScreenOrientation originalOrientation;
         private static bool isPollingTransactions = false;
         private static Coroutine pollingCoroutine;
+        private static bool isPrewarmed = false;
+        private static bool isPrefetched = false;
 
         public static void ShowUrlFullScreen(bool isDev = false, string url = null, string utmContent = null)
         {
@@ -357,5 +360,105 @@ namespace PlaySuperUnity
             }
             return or;
         }
+
+        #region WebView Prewarming
+
+        /// <summary>
+        /// Pre-warm the WebView engine and prefetch store resources.
+        /// Call this during SDK init to reduce OpenStore latency.
+        /// </summary>
+        public static void Prewarm(bool isDev)
+        {
+            string storeUrl = isDev ? Constants.devStoreUrl : Constants.prodStoreUrl;
+
+            // Prefetch store URL to warm DNS cache and establish connection
+            _ = PrefetchStoreResources(storeUrl);
+
+            // Pre-warm WebView engine (platform-specific)
+            PrewarmWebViewEngine();
+        }
+
+        /// <summary>
+        /// Prefetch store URL to warm DNS cache, TLS handshake, and HTTP cache.
+        /// This runs a lightweight HEAD request in background.
+        /// </summary>
+        private static async Task PrefetchStoreResources(string storeUrl)
+        {
+            if (isPrefetched) return;
+            isPrefetched = true;
+
+            try
+            {
+                using (var request = UnityWebRequest.Head(storeUrl))
+                {
+                    request.timeout = 10; // 10 second timeout
+                    var operation = request.SendWebRequest();
+
+                    while (!operation.isDone)
+                        await Task.Yield();
+
+                    if (request.result == UnityWebRequest.Result.Success)
+                    {
+                        Debug.Log($"[PlaySuper] Store prefetch complete - DNS and connection warmed");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[PlaySuper] Store prefetch failed: {request.error}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] Store prefetch error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Pre-warm the native WebView engine by briefly loading about:blank.
+        /// This initializes Chromium (Android) or WKWebView (iOS) in background.
+        /// </summary>
+        private static void PrewarmWebViewEngine()
+        {
+            if (isPrewarmed) return;
+            isPrewarmed = true;
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+            try
+            {
+                // Android: Initialize WebView on UI thread to warm Chromium engine
+                AndroidJavaClass unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+                AndroidJavaObject activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
+                
+                activity.Call("runOnUiThread", new AndroidJavaRunnable(() =>
+                {
+                    try
+                    {
+                        // Creating a WebView initializes the Chromium engine (~500ms-1s saved on first real use)
+                        AndroidJavaObject webView = new AndroidJavaObject("android.webkit.WebView", activity);
+                        // Destroy immediately - we only needed to trigger engine initialization
+                        webView.Call("destroy");
+                        webView.Dispose();
+                        Debug.Log("[PlaySuper] Android WebView engine prewarmed successfully");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[PlaySuper] Android WebView prewarm inner failed: {ex.Message}");
+                    }
+                }));
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] Android WebView prewarm failed: {ex.Message}");
+            }
+#elif UNITY_IOS && !UNITY_EDITOR
+            // iOS: WKWebView is initialized on first use by GpmWebView
+            // The prefetch above helps warm the networking stack
+            Debug.Log("[PlaySuper] iOS WebView prewarm (relies on prefetch for warming)");
+#else
+            Debug.Log("[PlaySuper] WebView prewarm skipped (Editor mode)");
+#endif
+        }
+
+        #endregion
     }
 }

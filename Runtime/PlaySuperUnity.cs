@@ -188,6 +188,9 @@ namespace PlaySuperUnity
                 // Start flag fetching after core SDK is ready
                 _ = FetchFlagsInitialAndSchedule();
 
+                // Pre-warm WebView engine for faster OpenStore (fire-and-forget)
+                WebView.Prewarm(isDev);
+
                 // If user was previously authenticated, fetch SDK transactions
                 if (hadExistingToken)
                 {
