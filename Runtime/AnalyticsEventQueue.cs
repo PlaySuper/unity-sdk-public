@@ -595,9 +595,9 @@ namespace PlaySuperUnity
         }
 
         /// <summary>
-        /// Force an immediate synchronous save. Use sparingly - only for critical data before app quit.
+        /// Force an immediate synchronous save. Use sparingly - only for critical data before app quit or pause.
         /// </summary>
-        private static void ForceSaveImmediate()
+        public static void ForceSaveImmediate()
         {
             lock (saveLock)
             {

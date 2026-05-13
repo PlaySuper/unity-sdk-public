@@ -1274,15 +1274,24 @@ namespace PlaySuperUnity
         {
             if (pauseStatus)
             {
-                Debug.Log("[PlaySuper] App pausing - saving state");
+                Debug.Log("[PlaySuper] App pausing - saving + best-effort flush");
                 PlayerPrefsSaveManager.ForceSaveImmediate(); // Flush any pending debounced saves
-                AnalyticsEventQueue.Dispose();
+                // Save analytics to disk first so they survive if OS kills us.
+                // DON'T clear the in-memory queue — keeps events available if we resume.
+                AnalyticsEventQueue.ForceSaveImmediate();
+                // Fire-and-forget best-effort flush in the brief pre-suspension window.
+                _ = AnalyticsEventQueue.ProcessQueue();
             }
             else
             {
                 Debug.Log("[PlaySuper] App resuming - checking for pending transactions");
                 // Sync any pending local transactions when app resumes
                 _ = SyncPendingLocalTransactionsAsync();
+                // Try to flush any events that accumulated during pause
+                if (AnalyticsEventQueue.HasQueuedEvents())
+                {
+                    _ = AnalyticsEventQueue.ProcessQueue();
+                }
             }
         }
 
