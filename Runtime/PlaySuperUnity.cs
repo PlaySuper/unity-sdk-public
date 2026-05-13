@@ -191,6 +191,9 @@ namespace PlaySuperUnity
                 // Pre-warm WebView engine for faster OpenStore (fire-and-forget)
                 WebView.Prewarm(isDev);
 
+                // Warm public IP cache so first event doesn't pay the ipify latency
+                _ = NetworkUtils.GetPublicIPAddress();
+
                 // If user was previously authenticated, fetch SDK transactions
                 if (hadExistingToken)
                 {

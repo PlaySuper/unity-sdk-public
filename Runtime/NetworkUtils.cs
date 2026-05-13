@@ -17,6 +17,11 @@ namespace PlaySuperUnity
         private static DateTime lastIPCacheTime = DateTime.MinValue;
         private static readonly TimeSpan IP_CACHE_DURATION = TimeSpan.FromMinutes(5);
 
+        // Cached public IP — warmed at SDK Initialize, refreshed lazily after TTL
+        private static string cachedPublicIP = null;
+        private static DateTime lastPublicIPCacheTime = DateTime.MinValue;
+        private static readonly TimeSpan PUBLIC_IP_CACHE_DURATION = TimeSpan.FromMinutes(30);
+
         /// <summary>
         /// Quick network availability check with caching to avoid excessive calls
         /// </summary>
@@ -208,6 +213,13 @@ namespace PlaySuperUnity
 
         public static async Task<string> GetPublicIPAddress()
         {
+            // Return cached value if still fresh (set by warmup at Init or prior call)
+            if (!string.IsNullOrEmpty(cachedPublicIP) &&
+                DateTime.UtcNow - lastPublicIPCacheTime < PUBLIC_IP_CACHE_DURATION)
+            {
+                return cachedPublicIP;
+            }
+
             try
             {
                 using (
@@ -228,6 +240,8 @@ namespace PlaySuperUnity
                     {
                         string ip = request.downloadHandler.text.Trim();
                         Debug.Log($"[NetworkUtils] Public IP: {ip}");
+                        cachedPublicIP = ip;
+                        lastPublicIPCacheTime = DateTime.UtcNow;
                         return ip;
                     }
                     else
