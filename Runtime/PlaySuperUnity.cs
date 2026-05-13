@@ -639,7 +639,7 @@ namespace PlaySuperUnity
 
         public void OpenStore(string url = null, string utmContent = null)
         {
-            _ = AnalyticsManager.SendEvent(Constants.AnalyticsEvent.STORE_OPEN);
+            _ = AnalyticsManager.SendEvent(Constants.AnalyticsEvent.TOUCHPOINT_CLICKED);
 
             // Sync any pending local transactions before opening store
             _ = SyncPendingLocalTransactionsAsync();

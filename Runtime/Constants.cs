@@ -6,6 +6,7 @@ namespace PlaySuperUnity
         {
             public const string GAME_OPEN = "ps_sdk.game_opened";
             public const string GAME_CLOSE = "ps_sdk.game_closed";
+            public const string TOUCHPOINT_CLICKED = "ps_sdk.touchpoint_clicked";
             public const string STORE_OPEN = "ps_sdk.store_opened";
             public const string STORE_CLOSE = "ps_sdk.store_closed";
             public const string PLAYER_IDENTIFY = "ps_sdk.player_identified";
