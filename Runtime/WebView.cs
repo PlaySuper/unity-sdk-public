@@ -16,6 +16,30 @@ namespace PlaySuperUnity
         private static bool isPrewarmed = false;
         private static bool isPrefetched = false;
 
+        /// <summary>
+        /// Build the store URL with credentials and utm_content as query params.
+        /// The store consumes these synchronously on render (via themeProvider),
+        /// eliminating the race between JS-injection and React hydration.
+        /// </summary>
+        private static string BuildStoreUrl(string baseUrl, string utmContent)
+        {
+            var queryParams = new List<string>();
+            string apiKey = PlaySuperUnitySDK.GetApiKey();
+            string authToken = PlaySuperUnitySDK.GetAuthToken();
+
+            if (!string.IsNullOrEmpty(apiKey))
+                queryParams.Add($"apiKey={Uri.EscapeDataString(apiKey)}");
+            if (!string.IsNullOrEmpty(authToken))
+                queryParams.Add($"authToken={Uri.EscapeDataString(authToken)}");
+            if (!string.IsNullOrEmpty(utmContent))
+                queryParams.Add($"utm_content={Uri.EscapeDataString(utmContent)}");
+
+            if (queryParams.Count == 0) return baseUrl;
+
+            string separator = baseUrl.Contains("?") ? "&" : "?";
+            return $"{baseUrl}{separator}{string.Join("&", queryParams)}";
+        }
+
         public static void ShowUrlFullScreen(bool isDev = false, string url = null, string utmContent = null)
         {
             // Save original orientation before opening WebView
@@ -24,14 +48,8 @@ namespace PlaySuperUnity
             // Set to portrait for the WebView
             Screen.orientation = ScreenOrientation.Portrait;
 
-            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
-
-            // Append utm_content as query parameter if provided
-            if (!string.IsNullOrEmpty(utmContent))
-            {
-                string separator = targetUrl.Contains("?") ? "&" : "?";
-                targetUrl = $"{targetUrl}{separator}utm_content={Uri.EscapeDataString(utmContent)}";
-            }
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
                 targetUrl,
@@ -58,14 +76,8 @@ namespace PlaySuperUnity
             // Set to portrait for the WebView
             Screen.orientation = ScreenOrientation.Portrait;
 
-            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
-
-            // Append utm_content as query parameter if provided
-            if (!string.IsNullOrEmpty(utmContent))
-            {
-                string separator = targetUrl.Contains("?") ? "&" : "?";
-                targetUrl = $"{targetUrl}{separator}utm_content={Uri.EscapeDataString(utmContent)}";
-            }
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
                 targetUrl,
@@ -94,14 +106,8 @@ namespace PlaySuperUnity
             Screen.orientation = ScreenOrientation.Portrait;
 
             Rect safeArea = Screen.safeArea;
-            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
-
-            // Append utm_content as query parameter if provided
-            if (!string.IsNullOrEmpty(utmContent))
-            {
-                string separator = targetUrl.Contains("?") ? "&" : "?";
-                targetUrl = $"{targetUrl}{separator}utm_content={Uri.EscapeDataString(utmContent)}";
-            }
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
                 targetUrl,
