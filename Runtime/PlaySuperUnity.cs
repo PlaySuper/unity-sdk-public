@@ -577,12 +577,13 @@ namespace PlaySuperUnity
                 return;
             }
 
+            var gd = await AnalyticsManager.GetGameDataAsync();
             var payload = new PlayerIdentificationPayload
             {
                 userId = profile.id,
                 timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                 deviceId = AnalyticsManager.DeviceId,
-                gameId = gameData?.id ?? ""
+                gameId = gd?.id ?? ""
             };
 
             var jsonPayload = JsonUtility.ToJson(payload);
@@ -2301,6 +2302,15 @@ namespace PlaySuperUnity
         }
 
         private static GameData gameData;
+
+        internal static async Task<GameData> GetGameDataAsync()
+        {
+            if (gameData == null)
+            {
+                gameData = await GameManager.GetGameData();
+            }
+            return gameData;
+        }
 
         internal static async Task SendEvent(string eventName, long timestamp = 0, Dictionary<string, object> customProperties = null)
         {
