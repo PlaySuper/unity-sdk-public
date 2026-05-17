@@ -178,7 +178,7 @@ namespace PlaySuperUnity
                 // Hydrate profile from cache so userId is available synchronously
                 // for analytics on the next cold launch — events fired before the
                 // background profile refresh completes will already have $user_id.
-                // FetchProfileAndIdentify below still runs to refresh from server.
+                // FetchProfileOnInit below still runs to refresh from server.
                 if (hadExistingToken)
                 {
                     profile = LoadCachedProfile();
@@ -209,7 +209,7 @@ namespace PlaySuperUnity
                 {
                     _ = FetchSdkTransactionsAfterAuth();
                     // Fetch profile and send identification for returning users (fire-and-forget)
-                    _ = FetchProfileAndIdentify();
+                    _ = FetchProfileOnInit();
                 }
             }
 
@@ -598,20 +598,23 @@ namespace PlaySuperUnity
             }
         }
 
-        private static async Task FetchProfileAndIdentify()
+        /// <summary>
+        /// Refresh the cached profile from the server on cold launch for returning users.
+        /// Does NOT re-send identity to the server — the identity_map row was written
+        /// during the original login (LoginFederatedByStudio / ProcessTokenCommon /
+        /// SetAuthToken) and the (userId, deviceId, gameId) tuple doesn't change here,
+        /// so a re-identify would dedup server-side and waste a request per cold launch.
+        /// </summary>
+        private static async Task FetchProfileOnInit()
         {
             try
             {
                 profile = await ProfileManager.GetProfileData();
                 PersistProfile(profile);
-                if (profile != null && _instance != null)
-                {
-                    await _instance.SendPlayerIdentificationRequest();
-                }
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[PlaySuper] Failed to fetch profile and identify on init: {ex.Message}");
+                Debug.LogWarning($"[PlaySuper] Failed to refresh profile on init: {ex.Message}");
             }
         }
 
