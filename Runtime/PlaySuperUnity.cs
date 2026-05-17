@@ -1997,6 +1997,8 @@ namespace PlaySuperUnity
         /// associated local state (transactions, user properties, analytics queue).
         /// Call this when your player signs out.
         /// </summary>
+        private const string LogoutPendingKey = "playsuper_logout_pending";
+
         public static void Logout()
         {
             authToken = null;
@@ -2010,8 +2012,27 @@ namespace PlaySuperUnity
             AnalyticsEventQueue.ClearQueue();
             AnalyticsManager.ResetDeviceId();
 
+            // Mark that the next OpenStore() must invalidate the WebView's
+            // localStorage so the previous user's auth/cache/queue does not
+            // leak into the next user's session. Consumed by BuildStoreUrl.
+            PlayerPrefs.SetInt(LogoutPendingKey, 1);
+
             PlayerPrefsSaveManager.ForceSaveImmediate(); // Critical: must complete before method returns
             Debug.Log("[PlaySuper] Player logged out — all session state cleared");
+        }
+
+        /// <summary>
+        /// One-shot read of the "logout pending" flag. Returns true once
+        /// after Logout(); subsequent calls return false until the next
+        /// Logout(). Called by WebView.BuildStoreUrl to decide whether to
+        /// include ?clearSession=true on the next store URL.
+        /// </summary>
+        internal static bool ConsumeLogoutPending()
+        {
+            if (PlayerPrefs.GetInt(LogoutPendingKey, 0) == 0) return false;
+            PlayerPrefs.DeleteKey(LogoutPendingKey);
+            PlayerPrefsSaveManager.ScheduleSave();
+            return true;
         }
 
         #endregion

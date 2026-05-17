@@ -27,6 +27,11 @@ namespace PlaySuperUnity
             string apiKey = PlaySuperUnitySDK.GetApiKey();
             string authToken = PlaySuperUnitySDK.GetAuthToken();
 
+            // After Logout(), tell the store to wipe stale localStorage from
+            // the previous user before applying the new auth.
+            if (PlaySuperUnitySDK.ConsumeLogoutPending())
+                queryParams.Add("clearSession=true");
+
             if (!string.IsNullOrEmpty(apiKey))
                 queryParams.Add($"apiKey={Uri.EscapeDataString(apiKey)}");
             if (!string.IsNullOrEmpty(authToken))
