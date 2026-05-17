@@ -698,7 +698,28 @@ namespace PlaySuperUnity
 
         public void OpenStore(string url = null, string utmContent = null)
         {
-            _ = AnalyticsManager.SendEvent(Constants.AnalyticsEvent.TOUCHPOINT_CLICKED);
+            // Capture which touchpoint the game opened the store from.
+            // Precedence:
+            //   1. Explicit utmContent parameter (clearest caller intent).
+            //   2. utm_content query param parsed from the supplied url
+            //      (handles cases where the game already embedded it in the URL).
+            // The same identifier also flows to the store webview as
+            // ?utm_content=... for web-side attribution.
+            string effectiveTouchpoint = utmContent;
+            if (string.IsNullOrEmpty(effectiveTouchpoint) && !string.IsNullOrEmpty(url))
+            {
+                effectiveTouchpoint = ExtractUtmContentFromUrl(url);
+            }
+
+            Dictionary<string, object> touchpointProps = null;
+            if (!string.IsNullOrEmpty(effectiveTouchpoint))
+            {
+                touchpointProps = new Dictionary<string, object>
+                {
+                    { "touchpointName", effectiveTouchpoint }
+                };
+            }
+            _ = AnalyticsManager.SendEvent(Constants.AnalyticsEvent.TOUCHPOINT_CLICKED, 0, touchpointProps);
 
             // Sync any pending local transactions before opening store
             _ = SyncPendingLocalTransactionsAsync();
@@ -715,6 +736,36 @@ namespace PlaySuperUnity
 
             Debug.Log("[PlaySuper] OpenStore: opening store");
             WebView.ShowUrlFullScreen(isDev, url, utmContent);
+        }
+
+        /// <summary>
+        /// Extract the utm_content value from a URL's query string.
+        /// Returns null if the URL has no query string or no utm_content param.
+        /// Handles URL-encoded values and ignores anything after a fragment (#).
+        /// </summary>
+        private static string ExtractUtmContentFromUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return null;
+
+            int queryStart = url.IndexOf('?');
+            if (queryStart < 0) return null;
+
+            int fragmentStart = url.IndexOf('#', queryStart);
+            string query = fragmentStart >= 0
+                ? url.Substring(queryStart + 1, fragmentStart - queryStart - 1)
+                : url.Substring(queryStart + 1);
+
+            const string key = "utm_content=";
+            foreach (var pair in query.Split('&'))
+            {
+                if (pair.StartsWith(key, StringComparison.Ordinal))
+                {
+                    string raw = pair.Substring(key.Length);
+                    try { return Uri.UnescapeDataString(raw); }
+                    catch { return raw; }
+                }
+            }
+            return null;
         }
 
         /// <summary>
