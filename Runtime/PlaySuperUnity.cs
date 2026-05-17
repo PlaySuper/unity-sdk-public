@@ -81,6 +81,7 @@ namespace PlaySuperUnity
             public long timestamp;
             public string deviceId;
             public string gameId;
+            public string apiKey;
         }
 
         [System.Serializable]
@@ -172,6 +173,15 @@ namespace PlaySuperUnity
                 {
                     authToken = PlayerPrefs.GetString("authToken");
                     hadExistingToken = !string.IsNullOrEmpty(authToken);
+                }
+
+                // Hydrate profile from cache so userId is available synchronously
+                // for analytics on the next cold launch — events fired before the
+                // background profile refresh completes will already have $user_id.
+                // FetchProfileAndIdentify below still runs to refresh from server.
+                if (hadExistingToken)
+                {
+                    profile = LoadCachedProfile();
                 }
 
                 // Create SDK GameObject
@@ -302,6 +312,43 @@ namespace PlaySuperUnity
         }
 
         #endregion
+
+        private const string ProfileCacheKey = "profile";
+
+        /// <summary>
+        /// Persist the player profile to PlayerPrefs so userId is available
+        /// synchronously on the next cold launch — eliminates the race where
+        /// early-session events fire before /player/profile resolves.
+        /// </summary>
+        private static void PersistProfile(ProfileData p)
+        {
+            if (p == null) return;
+            try
+            {
+                PlayerPrefs.SetString(ProfileCacheKey, JsonUtility.ToJson(p));
+                PlayerPrefsSaveManager.ScheduleSave();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] Failed to persist profile: {ex.Message}");
+            }
+        }
+
+        private static ProfileData LoadCachedProfile()
+        {
+            try
+            {
+                if (!PlayerPrefs.HasKey(ProfileCacheKey)) return null;
+                string json = PlayerPrefs.GetString(ProfileCacheKey);
+                if (string.IsNullOrEmpty(json)) return null;
+                return JsonUtility.FromJson<ProfileData>(json);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] Failed to load cached profile: {ex.Message}");
+                return null;
+            }
+        }
 
         private static void HandlePreviousSessionClose()
         {
@@ -527,6 +574,7 @@ namespace PlaySuperUnity
                             PlayerPrefs.SetString("authToken", authToken);
                             PlayerPrefsSaveManager.ScheduleSave();
                             profile = await ProfileManager.GetProfileData();
+                            PersistProfile(profile);
                             Debug.Log("[PlaySuper] Federated login succeeded");
 
                             // Send player identification request after successful login (fire-and-forget)
@@ -555,6 +603,7 @@ namespace PlaySuperUnity
             try
             {
                 profile = await ProfileManager.GetProfileData();
+                PersistProfile(profile);
                 if (profile != null && _instance != null)
                 {
                     await _instance.SendPlayerIdentificationRequest();
@@ -577,13 +626,16 @@ namespace PlaySuperUnity
                 return;
             }
 
-            var gd = await AnalyticsManager.GetGameDataAsync();
+            // Use cached gameData if available; do not block on a fetch.
+            // When gameId is empty, the server resolves it from apiKey.
+            var gd = AnalyticsManager.GetCachedGameData();
             var payload = new PlayerIdentificationPayload
             {
                 userId = profile.id,
                 timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                 deviceId = AnalyticsManager.DeviceId,
-                gameId = gd?.id ?? ""
+                gameId = gd?.id ?? "",
+                apiKey = apiKey ?? ""
             };
 
             var jsonPayload = JsonUtility.ToJson(payload);
@@ -741,6 +793,7 @@ namespace PlaySuperUnity
 
             authToken = token;
             profile = await ProfileManager.GetProfileData();
+            PersistProfile(profile);
 
             if (profile == null)
             {
@@ -1061,6 +1114,7 @@ namespace PlaySuperUnity
                 PlayerPrefsSaveManager.ScheduleSave();
                 // Fetch and set the profile for this token
                 profile = await ProfileManager.GetProfileData();
+                PersistProfile(profile);
                 // Send player identification (fire-and-forget)
                 _ = _instance.SendPlayerIdentificationRequest();
             }
@@ -1146,6 +1200,30 @@ namespace PlaySuperUnity
 
                         if (wrapper?.data != null)
                         {
+                            // Update local profile cache so analytics events and userId
+                            // reflect the new values within the same session — without
+                            // this, name/phone would stay stale until the next cold launch.
+                            if (profile != null)
+                            {
+                                bool changed = false;
+                                if (!string.IsNullOrEmpty(wrapper.data.firstName))
+                                {
+                                    profile.name = string.IsNullOrEmpty(wrapper.data.lastName)
+                                        ? wrapper.data.firstName
+                                        : $"{wrapper.data.firstName} {wrapper.data.lastName}";
+                                    changed = true;
+                                }
+                                if (!string.IsNullOrEmpty(wrapper.data.phoneNumber))
+                                {
+                                    profile.phone = wrapper.data.phoneNumber;
+                                    changed = true;
+                                }
+                                if (changed)
+                                {
+                                    PersistProfile(profile);
+                                }
+                            }
+
                             Debug.Log($"[PlaySuper] Player profile updated successfully");
                             return wrapper.data;
                         }
@@ -1921,6 +1999,7 @@ namespace PlaySuperUnity
             authToken = null;
             profile = null;
             PlayerPrefs.DeleteKey("authToken");
+            PlayerPrefs.DeleteKey(ProfileCacheKey);
 
             ClearUserProperties();
             ClearSdkTransactionSyncState();
@@ -2312,6 +2391,40 @@ namespace PlaySuperUnity
             return gameData;
         }
 
+        /// <summary>
+        /// Non-blocking accessor for cached game data. Returns null if not yet fetched.
+        /// Callers that need to ship something without waiting should use this and
+        /// rely on the server to enrich game/studio context from the apiKey.
+        /// </summary>
+        internal static GameData GetCachedGameData()
+        {
+            return gameData;
+        }
+
+        /// <summary>
+        /// Fire-and-forget background fetch of game data so future events can include
+        /// it locally. Safe to call repeatedly — coalesces on the in-flight fetch.
+        /// </summary>
+        private static bool _gameDataFetchInFlight = false;
+        internal static async Task WarmGameDataCache()
+        {
+            if (gameData != null || _gameDataFetchInFlight) return;
+            _gameDataFetchInFlight = true;
+            try
+            {
+                var fetched = await GameManager.GetGameData();
+                if (fetched != null) gameData = fetched;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Analytics] WarmGameDataCache failed: {ex.Message}");
+            }
+            finally
+            {
+                _gameDataFetchInFlight = false;
+            }
+        }
+
         internal static async Task SendEvent(string eventName, long timestamp = 0, Dictionary<string, object> customProperties = null)
         {
             try
@@ -2320,25 +2433,24 @@ namespace PlaySuperUnity
                 long actualEventTime =
                     timestamp != 0 ? timestamp : DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-                if (gameData == null)
+                // Snapshot identity at fire time so the event reflects state when SendEvent
+                // was called, not after any awaits below. Closes the race where login
+                // completing during a fetch would retroactively attach $user_id to an
+                // event that was logically pre-login.
+                string capturedUserId = userId;
+                GameData localGameData = gameData;
+
+                // Kick off a background fetch if we don't have gameData yet — future
+                // events benefit, but DON'T block this one. The server enriches
+                // game/studio context from the batch-level apiKey.
+                if (localGameData == null)
                 {
-                    gameData = await GameManager.GetGameData();
+                    _ = WarmGameDataCache();
                 }
 
-                // Guard against failed fetch - skip event if we have no game data
-                if (gameData == null)
-                {
-                    Debug.LogWarning("[PlaySuper] Cannot send event - game data unavailable");
-                    return;
-                }
-
-                // Get IP address (with fallback)
-                string ipAddress = await NetworkUtils.GetPublicIPAddress();
-
-                // Safe accessors for nested properties (studio/organization may be null)
-                string studioOrgId = gameData.studio?.organizationId ?? "";
-                string studioName = gameData.studio?.organization?.name ?? "";
-                string studioHandle = gameData.studio?.organization?.handle ?? "";
+                // IP from cache only — never block. _ = NetworkUtils.GetPublicIPAddress()
+                // is warmed in Initialize. Server also sees the source IP on the request.
+                string ipAddress = NetworkUtils.GetIPAddress();
 
                 // Build properties list
                 var properties = new List<string>
@@ -2348,23 +2460,30 @@ namespace PlaySuperUnity
                     $@"""time"": {actualEventTime}",
                     $@"""$insert_id"": ""{Guid.NewGuid()}""",
                     $@"""$ip"": ""{ipAddress}""",
-                    
+
                     // App info
                     $@"""app_version"": ""{Application.version}""",
-                    
+
                     // Platform & Device
                     $@"""platform"": ""{Application.platform}""",
                     $@"""os_version"": ""{EscapeJsonString(SystemInfo.operatingSystem)}""",
                     $@"""device_model"": ""{EscapeJsonString(SystemInfo.deviceModel)}""",
-                    
-                    // Game context
-                    $@"""gameId"": ""{gameData.id}""",
-                    $@"""gameName"": ""{gameData.name}""",
-                    $@"""studioId"": ""{gameData.studioId}""",
-                    $@"""studioOrganizationId"": ""{studioOrgId}""",
-                    $@"""studioName"": ""{studioName}""",
-                    $@"""studioHandle"": ""{studioHandle}""",
                 };
+
+                // Game context — only if locally cached. When absent, the server
+                // resolves these from the batch-level apiKey via resolveStudioFromApiKey.
+                if (localGameData != null)
+                {
+                    string studioOrgId = localGameData.studio?.organizationId ?? "";
+                    string studioName = localGameData.studio?.organization?.name ?? "";
+                    string studioHandle = localGameData.studio?.organization?.handle ?? "";
+                    properties.Add($@"""gameId"": ""{localGameData.id}""");
+                    properties.Add($@"""gameName"": ""{EscapeJsonString(localGameData.name)}""");
+                    properties.Add($@"""studioId"": ""{localGameData.studioId}""");
+                    properties.Add($@"""studioOrganizationId"": ""{studioOrgId}""");
+                    properties.Add($@"""studioName"": ""{EscapeJsonString(studioName)}""");
+                    properties.Add($@"""studioHandle"": ""{EscapeJsonString(studioHandle)}""");
+                }
 
                 // Before adding advertising ID to properties
                 if (PlaySuperUnitySDK.IsAdvertisingIdEnabled())
@@ -2389,10 +2508,10 @@ namespace PlaySuperUnity
                     }
                 }
 
-                // Add user ID only if available
-                if (!string.IsNullOrEmpty(userId))
+                // Add user ID only if available (snapshotted at fire time, see top of method)
+                if (!string.IsNullOrEmpty(capturedUserId))
                 {
-                    properties.Add($@"""$user_id"": ""{userId}""");
+                    properties.Add($@"""$user_id"": ""{capturedUserId}""");
                 }
 
                 // Add user properties (set via SetUserProperties)
