@@ -16,22 +16,50 @@ namespace PlaySuperUnity
         private static bool isPrewarmed = false;
         private static bool isPrefetched = false;
 
+        /// <summary>
+        /// Build the store URL with credentials and utm_content as query params.
+        /// The store consumes these synchronously on render (via themeProvider),
+        /// eliminating the race between JS-injection and React hydration.
+        /// </summary>
+        private static string BuildStoreUrl(string baseUrl, string utmContent)
+        {
+            var queryParams = new List<string>();
+            string apiKey = PlaySuperUnitySDK.GetApiKey();
+            string authToken = PlaySuperUnitySDK.GetAuthToken();
+
+            // After Logout(), tell the store to wipe stale localStorage from
+            // the previous user before applying the new auth.
+            if (PlaySuperUnitySDK.ConsumeLogoutPending())
+                queryParams.Add("clearSession=true");
+
+            if (!string.IsNullOrEmpty(apiKey))
+                queryParams.Add($"apiKey={Uri.EscapeDataString(apiKey)}");
+            if (!string.IsNullOrEmpty(authToken))
+                queryParams.Add($"authToken={Uri.EscapeDataString(authToken)}");
+            if (!string.IsNullOrEmpty(utmContent))
+                queryParams.Add($"utm_content={Uri.EscapeDataString(utmContent)}");
+
+            if (queryParams.Count == 0) return baseUrl;
+
+            string separator = baseUrl.Contains("?") ? "&" : "?";
+            return $"{baseUrl}{separator}{string.Join("&", queryParams)}";
+        }
+
         public static void ShowUrlFullScreen(bool isDev = false, string url = null, string utmContent = null)
         {
+            // Show branded loading screen instantly so the user gets visual
+            // feedback before the native WebView paints (~50–300ms gap).
+            // Dismissed in OnCallback when GpmWebView fires Open / Close.
+            LoadingScreen.Show();
+
             // Save original orientation before opening WebView
             originalOrientation = Screen.orientation;
 
             // Set to portrait for the WebView
             Screen.orientation = ScreenOrientation.Portrait;
 
-            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
-
-            // Append utm_content as query parameter if provided
-            if (!string.IsNullOrEmpty(utmContent))
-            {
-                string separator = targetUrl.Contains("?") ? "&" : "?";
-                targetUrl = $"{targetUrl}{separator}utm_content={Uri.EscapeDataString(utmContent)}";
-            }
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
                 targetUrl,
@@ -58,14 +86,8 @@ namespace PlaySuperUnity
             // Set to portrait for the WebView
             Screen.orientation = ScreenOrientation.Portrait;
 
-            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
-
-            // Append utm_content as query parameter if provided
-            if (!string.IsNullOrEmpty(utmContent))
-            {
-                string separator = targetUrl.Contains("?") ? "&" : "?";
-                targetUrl = $"{targetUrl}{separator}utm_content={Uri.EscapeDataString(utmContent)}";
-            }
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
                 targetUrl,
@@ -94,14 +116,8 @@ namespace PlaySuperUnity
             Screen.orientation = ScreenOrientation.Portrait;
 
             Rect safeArea = Screen.safeArea;
-            string targetUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
-
-            // Append utm_content as query parameter if provided
-            if (!string.IsNullOrEmpty(utmContent))
-            {
-                string separator = targetUrl.Contains("?") ? "&" : "?";
-                targetUrl = $"{targetUrl}{separator}utm_content={Uri.EscapeDataString(utmContent)}";
-            }
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
                 targetUrl,
@@ -144,6 +160,10 @@ namespace PlaySuperUnity
             switch (callbackType)
             {
                 case GpmWebViewCallback.CallbackType.Close:
+                    // Defensive: in case Open never fired (e.g., WebView failed
+                    // to open), ensure the loading screen doesn't get orphaned.
+                    LoadingScreen.Hide();
+
                     // Stop polling for transaction signals
                     StopTransactionPolling();
 
@@ -161,6 +181,11 @@ namespace PlaySuperUnity
                     break;
 
                 case GpmWebViewCallback.CallbackType.Open:
+                    // WebView is now painted on top of everything; dismiss
+                    // the SDK loading screen. The store's EntryLoader takes
+                    // over for the JS-load / hydration phase inside the WebView.
+                    LoadingScreen.Hide();
+
                     // Notify SDK subscribers
                     PlaySuperUnitySDK.NotifyStoreOpened();
 

@@ -298,8 +298,12 @@ namespace PlaySuperUnity
                 return "{}";
             }
 
-            // Build payload matching analytics.playsuper.club format
+            // Build payload matching analytics.playsuper.club format.
+            // apiKey lets the server resolve game/studio context when individual
+            // events lack it (e.g., first-launch events fired before gameData loaded).
+            var batchApiKey = PlaySuperUnitySDK.GetApiKey() ?? "";
             var batchJson = $@"{{
+  ""apiKey"": ""{batchApiKey}"",
   ""events"": [
     {string.Join(",\n    ", eventsJsonArray)}
   ],
@@ -595,9 +599,9 @@ namespace PlaySuperUnity
         }
 
         /// <summary>
-        /// Force an immediate synchronous save. Use sparingly - only for critical data before app quit.
+        /// Force an immediate synchronous save. Use sparingly - only for critical data before app quit or pause.
         /// </summary>
-        private static void ForceSaveImmediate()
+        public static void ForceSaveImmediate()
         {
             lock (saveLock)
             {

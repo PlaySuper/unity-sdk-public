@@ -50,18 +50,14 @@ namespace PlaySuperUnity
 
         void OnApplicationPause(bool paused)
         {
-            if (!paused) // App resumed
-            {
-                TryProcessQueue();
-            }
+            // Try to flush in both directions: pause (pre-suspension window)
+            // and resume (catch up on backlog).
+            TryProcessQueue();
         }
 
         void OnApplicationFocus(bool hasFocus)
         {
-            if (hasFocus) // App got focus
-            {
-                TryProcessQueue();
-            }
+            TryProcessQueue();
         }
 
         private void TryProcessQueue()
