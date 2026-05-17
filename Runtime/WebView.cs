@@ -42,6 +42,11 @@ namespace PlaySuperUnity
 
         public static void ShowUrlFullScreen(bool isDev = false, string url = null, string utmContent = null)
         {
+            // Show branded loading screen instantly so the user gets visual
+            // feedback before the native WebView paints (~50–300ms gap).
+            // Dismissed in OnCallback when GpmWebView fires Open / Close.
+            LoadingScreen.Show();
+
             // Save original orientation before opening WebView
             originalOrientation = Screen.orientation;
 
@@ -150,6 +155,10 @@ namespace PlaySuperUnity
             switch (callbackType)
             {
                 case GpmWebViewCallback.CallbackType.Close:
+                    // Defensive: in case Open never fired (e.g., WebView failed
+                    // to open), ensure the loading screen doesn't get orphaned.
+                    LoadingScreen.Hide();
+
                     // Stop polling for transaction signals
                     StopTransactionPolling();
 
@@ -167,6 +176,11 @@ namespace PlaySuperUnity
                     break;
 
                 case GpmWebViewCallback.CallbackType.Open:
+                    // WebView is now painted on top of everything; dismiss
+                    // the SDK loading screen. The store's EntryLoader takes
+                    // over for the JS-load / hydration phase inside the WebView.
+                    LoadingScreen.Hide();
+
                     // Notify SDK subscribers
                     PlaySuperUnitySDK.NotifyStoreOpened();
 
