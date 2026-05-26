@@ -15,6 +15,10 @@ namespace PlaySuperUnity
             public const string TRANSACTIONS_FETCHED = "ps_sdk.transactions_fetched";
             public const string TRANSACTIONS_COMMITTED = "ps_sdk.transactions_committed";
             public const string TRANSACTIONS_COMMIT_FAILED = "ps_sdk.transactions_commit_failed";
+
+            // ANR / crash self-reporting — emitted on the cold start that follows a bad exit
+            // (ActivityManager.getHistoricalProcessExitReasons, API 30+ Android only).
+            public const string PREVIOUS_EXIT_OBSERVED = "ps_sdk.previous_exit";
         }
 
         // Analytics API endpoints (same as playsuper-store and playsuper-api)

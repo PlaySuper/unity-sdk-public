@@ -215,9 +215,6 @@ namespace PlaySuperUnity
                     // More reliable URL check
                     if (data.Contains("store.playsuper.club"))
                     {
-                        string js =
-                            $"localStorage.setItem('apiKey', '{PlaySuperUnitySDK.GetApiKey()}'); localStorage.setItem('isUnityWebView', 'true');";
-                        GpmWebView.ExecuteJavaScript(js);
                         Debug.Log("Store URL detected - Injecting credentials");
                         InjectCredentials();
                     }
@@ -308,6 +305,32 @@ namespace PlaySuperUnity
             Debug.Log("[PlaySuper] Transaction polling stopped");
         }
 
+        // TODO(v4.3.0): replace this JS-exec poll with a push-based signal from
+        // the store webview.
+        //
+        // Why we still poll in v4.2.0:
+        //   The natural Android push — store calls
+        //     window.location.href = 'USER_CUSTOM_SCHEME://txn?ts=' + ts;
+        //   — does not fire the WebView's shouldOverrideUrlLoading callback on
+        //   Chromium-backed WebView when invoked without a user gesture. The
+        //   navigation is treated as a top-level URL load instead, and the
+        //   WebView either errors with ERR_UNKNOWN_URL_SCHEME or routes it out
+        //   as an external intent. iOS WKWebView calls decidePolicyForNavigation
+        //   for programmatic navigations too, which is why the existing
+        //   USER_CUSTOM_SCHEME://close handler works there.
+        //
+        // Candidates to evaluate for v4.3.0:
+        //   1. Iframe-src trick — store creates a hidden iframe whose src is the
+        //      custom scheme URL; sub-resource loads DO fire shouldOverrideUrl-
+        //      Loading even without a user gesture. Requires store-side change.
+        //   2. JavascriptInterface bridge — add a native @JavascriptInterface
+        //      (Android) / WKScriptMessageHandler (iOS) so the store can call
+        //      window.PSBridge.onTransaction(ts) directly. Requires extending
+        //      GpmWebView or wrapping it with a native plugin layer.
+        //
+        // In the meantime: poll at 5 s instead of 1 s. Cuts JS-exec JNI traffic
+        // by 80% while the store WebView is open, with a worst-case 5 s txn-
+        // recognition delay that product has signed off on.
         private static IEnumerator PollTransactionSignal()
         {
             while (isPollingTransactions)
@@ -325,41 +348,56 @@ namespace PlaySuperUnity
                     })()
                 ");
 
-                yield return new WaitForSeconds(1f);
+                yield return new WaitForSeconds(5f);
             }
         }
 
+        /// <summary>
+        /// Inject SDK credentials and the Unity-WebView flag into the store's
+        /// localStorage in a single ExecuteJavaScript call.
+        ///
+        /// Previously this method made 3–4 separate JNI hops (apiKey set,
+        /// isUnityWebView set, authToken set, console-log verify) every time the
+        /// store URL loaded. Each call crossed the Unity → Android UI thread →
+        /// WebView JS engine bridge while Chromium was still hydrating the page,
+        /// adding load at the worst moment for low-end devices. Batching into one
+        /// JS string collapses those hops to a single bridge crossing.
+        /// </summary>
         internal static void InjectCredentials()
         {
-            // Get credentials from SDK
             string apiKey = PlaySuperUnitySDK.GetApiKey();
             string token = PlaySuperUnitySDK.GetAuthToken();
+            bool hasToken = !string.IsNullOrEmpty(token);
 
-            // Log what we're injecting
-            Debug.Log(
-                $"Injecting - API Key: {apiKey}, Token present: {!string.IsNullOrEmpty(token)}"
-            );
+            Debug.Log($"[PlaySuper] Injecting credentials (token present: {hasToken})");
 
-            // Set API key
-            string jsApiKey =
-                $"localStorage.setItem('apiKey', '{apiKey}'); console.log('API key set: {apiKey}');";
-            GpmWebView.ExecuteJavaScript(jsApiKey);
+            string safeApiKey = EscapeForSingleQuotedJs(apiKey);
+            string safeToken = hasToken ? EscapeForSingleQuotedJs(token) : null;
 
-            // Set auth token if available
-            if (!string.IsNullOrEmpty(token))
-            {
-                // IMPORTANT: Format token properly for JavaScript
-                string safeToken = token.Replace("'", "\\'").Replace("\n", "\\n");
+            // Single batched script: API key + Unity-WebView flag always, auth
+            // token only when present. Final console.log gives us a verification
+            // line in DevTools without echoing the secret.
+            string js =
+                $"localStorage.setItem('apiKey', '{safeApiKey}');" +
+                "localStorage.setItem('isUnityWebView', 'true');" +
+                (hasToken ? $"localStorage.setItem('authToken', '{safeToken}');" : "") +
+                $"console.log('[PlaySuper] credentials injected (token: ' + ({(hasToken ? "true" : "false")}) + ')');";
 
-                string jsToken =
-                    $"localStorage.setItem('authToken', '{safeToken}'); console.log('Auth token set (first 5 chars): ' + localStorage.getItem('authToken').substring(0,5));";
-                GpmWebView.ExecuteJavaScript(jsToken);
+            GpmWebView.ExecuteJavaScript(js);
+        }
 
-                // Verify injection
-                string jsVerify =
-                    "console.log('Auth token verification: ' + (localStorage.getItem('authToken') ? 'Present' : 'Missing'));";
-                GpmWebView.ExecuteJavaScript(jsVerify);
-            }
+        /// <summary>
+        /// Escape a value to be safely embedded inside a single-quoted JS string
+        /// literal. Handles backslashes, quotes, and newlines.
+        /// </summary>
+        private static string EscapeForSingleQuotedJs(string raw)
+        {
+            if (string.IsNullOrEmpty(raw)) return string.Empty;
+            return raw
+                .Replace("\\", "\\\\")
+                .Replace("'", "\\'")
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n");
         }
 
         private static int getWebOrientation()
@@ -396,11 +434,16 @@ namespace PlaySuperUnity
         {
             string storeUrl = isDev ? Constants.devStoreUrl : Constants.prodStoreUrl;
 
-            // Prefetch store URL to warm DNS cache and establish connection
+            // Layer 1: warm DNS / TCP / TLS / HTTP cache — cross-platform, off-thread.
             _ = PrefetchStoreResources(storeUrl);
 
-            // Pre-warm WebView engine (platform-specific)
-            PrewarmWebViewEngine();
+            // Layer 2: load libwebviewchromium.so without instantiating a WebView.
+            // Android-only — iOS WebKit is already linked into every process and
+            // WKWebView content-process boot is async, so there is no main-thread
+            // cost to dodge there.
+#if UNITY_ANDROID && !UNITY_EDITOR
+            WarmChromiumOffUiThread();
+#endif
         }
 
         /// <summary>
@@ -438,51 +481,62 @@ namespace PlaySuperUnity
             }
         }
 
+#if UNITY_ANDROID && !UNITY_EDITOR
         /// <summary>
-        /// Pre-warm the native WebView engine by briefly loading about:blank.
-        /// This initializes Chromium (Android) or WKWebView (iOS) in background.
+        /// Load libwebviewchromium.so and initialize the Chromium provider on a
+        /// worker thread, without ever constructing a WebView.
+        ///
+        /// Previously this method posted a Runnable to the Android UI thread that
+        /// did `new WebView(activity); destroy();` to trigger engine init. On low-
+        /// end Vivo/Realme/Xiaomi devices that single call blocked Thread 1 "main"
+        /// for several seconds inside libwebviewchromium.so JNI frames and was
+        /// observed as the dominant user-perceived ANR signature on the affected
+        /// game (Play Console issue 89a40858d196a8f5d014721c5dd3cc87).
+        ///
+        /// WebView.startSafeBrowsing (API 27+) loads the same native libs and
+        /// initializes the Chromium provider but runs entirely on Chromium's own
+        /// threads — it never touches the Android UI thread, never constructs a
+        /// View, and never attaches a surface. We pass null for the callback
+        /// because we do not need the safe-browsing-ready boolean.
         /// </summary>
-        private static void PrewarmWebViewEngine()
+        private static void WarmChromiumOffUiThread()
         {
             if (isPrewarmed) return;
             isPrewarmed = true;
 
-#if UNITY_ANDROID && !UNITY_EDITOR
+            AndroidJavaClass unityPlayer;
+            AndroidJavaObject activity;
             try
             {
-                // Android: Initialize WebView on UI thread to warm Chromium engine
-                AndroidJavaClass unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-                AndroidJavaObject activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
-                
-                activity.Call("runOnUiThread", new AndroidJavaRunnable(() =>
-                {
-                    try
-                    {
-                        // Creating a WebView initializes the Chromium engine (~500ms-1s saved on first real use)
-                        AndroidJavaObject webView = new AndroidJavaObject("android.webkit.WebView", activity);
-                        // Destroy immediately - we only needed to trigger engine initialization
-                        webView.Call("destroy");
-                        webView.Dispose();
-                        Debug.Log("[PlaySuper] Android WebView engine prewarmed successfully");
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogWarning($"[PlaySuper] Android WebView prewarm inner failed: {ex.Message}");
-                    }
-                }));
+                unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
+                activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[PlaySuper] Android WebView prewarm failed: {ex.Message}");
+                Debug.LogWarning($"[PlaySuper] Chromium warm skipped — could not resolve currentActivity: {ex.Message}");
+                return;
             }
-#elif UNITY_IOS && !UNITY_EDITOR
-            // iOS: WKWebView is initialized on first use by GpmWebView
-            // The prefetch above helps warm the networking stack
-            Debug.Log("[PlaySuper] iOS WebView prewarm (relies on prefetch for warming)");
-#else
-            Debug.Log("[PlaySuper] WebView prewarm skipped (Editor mode)");
-#endif
+
+            Task.Run(() =>
+            {
+                try
+                {
+                    using (var webViewClass = new AndroidJavaClass("android.webkit.WebView"))
+                    {
+                        webViewClass.CallStatic("startSafeBrowsing", activity, null);
+                    }
+                    Debug.Log("[PlaySuper] Chromium warmed via startSafeBrowsing (off UI thread)");
+                }
+                catch (Exception ex)
+                {
+                    // Older WebView providers may not implement startSafeBrowsing.
+                    // Silent fall-back to no engine warm is fine — the HEAD prefetch
+                    // still runs and the WebView creates on first real OpenStore.
+                    Debug.LogWarning($"[PlaySuper] startSafeBrowsing unavailable, skipping engine warm: {ex.Message}");
+                }
+            });
         }
+#endif
 
         #endregion
     }

@@ -201,6 +201,12 @@ namespace PlaySuperUnity
                 // Pre-warm WebView engine for faster OpenStore (fire-and-forget)
                 WebView.Prewarm(isDev);
 
+                // Report any previous-process ANR / crash through our analytics
+                // pipeline so v4.2.0's ANR fix can be verified from our own
+                // dashboards instead of Play Console's delayed vitals.
+                // Android API 30+ only; silent no-op otherwise.
+                AnrTelemetry.ReportPreviousExitIfBad();
+
                 // Warm public IP cache so first event doesn't pay the ipify latency
                 _ = NetworkUtils.GetPublicIPAddress();
 
