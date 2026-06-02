@@ -16,6 +16,10 @@ namespace PlaySuperUnity
         private static bool isPrewarmed = false;
         private static bool isPrefetched = false;
 
+        // Valid WHATWG scheme — iOS 26+ requires this. Legacy kept for old store builds.
+        private const string CustomScheme = "psbridge";
+        private const string LegacyScheme = "USER_CUSTOM_SCHEME";
+
         /// <summary>
         /// Build the store URL with credentials and utm_content as query params.
         /// The store consumes these synchronously on render (via themeProvider),
@@ -38,6 +42,7 @@ namespace PlaySuperUnity
                 queryParams.Add($"authToken={Uri.EscapeDataString(authToken)}");
             if (!string.IsNullOrEmpty(utmContent))
                 queryParams.Add($"utm_content={Uri.EscapeDataString(utmContent)}");
+            queryParams.Add($"psSdkScheme={CustomScheme}");
 
             if (queryParams.Count == 0) return baseUrl;
 
@@ -74,7 +79,7 @@ namespace PlaySuperUnity
                     supportMultipleWindows = true,
                 },
                 OnCallback,
-                new List<string>() { "USER_CUSTOM_SCHEME" }
+                new List<string>() { CustomScheme, LegacyScheme }
             );
         }
 
@@ -103,7 +108,7 @@ namespace PlaySuperUnity
                     supportMultipleWindows = true,
                 },
                 OnCallback,
-                new List<string>() { "USER_CUSTOM_SCHEME" }
+                new List<string>() { CustomScheme, LegacyScheme }
             );
         }
 
@@ -145,7 +150,7 @@ namespace PlaySuperUnity
                     supportMultipleWindows = true,
                 },
                 OnCallback,
-                new List<string>() { "USER_CUSTOM_SCHEME" }
+                new List<string>() { CustomScheme, LegacyScheme }
             );
         }
 
@@ -205,7 +210,8 @@ namespace PlaySuperUnity
                     Debug.Log($"Page started: {data}");
 
                     // Check for malformed schemes (iOS appends to URL instead of triggering scheme callback)
-                    if (data.Contains("USER_CUSTOM_SCHEME://close") || data.Contains("USER_CUSTOM_SCHEME:/close"))
+                    if (data.Contains("psbridge://close") || data.Contains("psbridge:/close") ||
+                        data.Contains("USER_CUSTOM_SCHEME://close") || data.Contains("USER_CUSTOM_SCHEME:/close"))
                     {
                         Debug.Log("Detected malformed close scheme in URL - closing WebView");
                         GpmWebView.Close();
@@ -219,9 +225,19 @@ namespace PlaySuperUnity
                         InjectCredentials();
                     }
                     break;
+
+                case GpmWebViewCallback.CallbackType.PageLoad:
+                    // iOS 26+ rejects ExecuteJavaScript at PageStarted (document not ready).
+                    // Re-inject here once the JS context is committed.
+                    if (data != null && data.Contains("store.playsuper.club"))
+                    {
+                        InjectCredentials();
+                    }
+                    break;
+
                 case GpmWebViewCallback.CallbackType.ExecuteJavascript:
                     Debug.Log("ExecuteJavascript: " + data);
-                    if (string.IsNullOrEmpty(data) == false && data.Length > 2 && data != "null")
+                    if (string.IsNullOrEmpty(data) == false && data.Length > 2 && data != "null" && data != "<null>")
                     {
                         // Check if this is a transaction signal from polling
                         if (data.Contains("PS_TXN:"))
@@ -380,6 +396,7 @@ namespace PlaySuperUnity
             string js =
                 $"localStorage.setItem('apiKey', '{safeApiKey}');" +
                 "localStorage.setItem('isUnityWebView', 'true');" +
+                $"localStorage.setItem('psSdkScheme', '{CustomScheme}');" +
                 (hasToken ? $"localStorage.setItem('authToken', '{safeToken}');" : "") +
                 $"console.log('[PlaySuper] credentials injected (token: ' + ({(hasToken ? "true" : "false")}) + ')');";
 
