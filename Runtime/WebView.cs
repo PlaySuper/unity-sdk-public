@@ -86,6 +86,7 @@ namespace PlaySuperUnity
                     if (!string.IsNullOrEmpty(ua))
                     {
                         cachedPatchedUserAgent = ua.Replace("; wv", "").Replace("Version/4.0 ", "");
+                        Debug.Log($"[PlaySuper] Patched WebView UA: {cachedPatchedUserAgent}");
                         return cachedPatchedUserAgent;
                     }
                 }

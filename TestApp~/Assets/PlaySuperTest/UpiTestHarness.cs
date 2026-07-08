@@ -62,6 +62,21 @@ public class UpiTestHarness : MonoBehaviour
             OpenStore();
         }
 
+        GUILayout.Space(6);
+        if (GUILayout.Button("3) UA Check (echo page in WebView)", buttonStyle, GUILayout.Height(44)))
+        {
+            if (!initialized)
+            {
+                status = "Init first (button 1).";
+            }
+            else
+            {
+                // Opens in the SAME GPM WebView config as the store — the page
+                // echoes the User-Agent header the WebView actually sent.
+                PlaySuperUnitySDK.Instance.OpenStore("https://httpbin.org/user-agent", null);
+            }
+        }
+
         GUILayout.Space(10);
         GUILayout.Label($"Status: {status}", labelStyle);
         GUILayout.Label($"Logged in: {(initialized && PlaySuperUnitySDK.IsLoggedIn())}", labelStyle);
