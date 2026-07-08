@@ -1,0 +1,41 @@
+name: Build UPI Test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - upi-test-app
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache Unity Library
+        uses: actions/cache@v4
+        with:
+          path: TestApp~/Library
+          key: Library-TestApp-Android
+          restore-keys: Library-TestApp-
+
+      - name: Build APK
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          projectPath: TestApp~
+          unityVersion: 2022.3.38f1
+          targetPlatform: Android
+          buildMethod: BuildTestApk.Build
+          allowDirtyBuild: true
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ps-upi-test-apk
+          path: TestApp~/Builds/ps-upi-test.apk
+          if-no-files-found: error

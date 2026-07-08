@@ -34,3 +34,6 @@ desktop.ini
 *.unityproj
 *.pidb
 *.booproj
+# Unity ignores folders ending in ~ inside packages, which is exactly why the
+# CI test app lives at TestApp~ — re-include it past the *~ editor-backup rule.
+!TestApp~/
