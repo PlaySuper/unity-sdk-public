@@ -84,11 +84,22 @@ public class UpiTestHarness : MonoBehaviour
         }
         status = "Initialized. Logging in…";
 
-        var login = await PlaySuperUnitySDK.Instance.LoginFederatedByStudio(
-            SystemInfo.deviceUniqueIdentifier);
+        // login/federatedByStudio only signs in EXISTING players (404 for an
+        // unknown uuid) — create the guest player first, then log in.
+        string uuid = SystemInfo.deviceUniqueIdentifier;
+        var login = await PlaySuperUnitySDK.Instance.LoginFederatedByStudio(uuid);
+        if (login == null || !PlaySuperUnitySDK.IsLoggedIn())
+        {
+            status = "No existing player — creating guest player…";
+            var created = await PlaySuperUnitySDK.Instance.CreatePlayerWithUuid(uuid);
+            if (created != null)
+            {
+                login = await PlaySuperUnitySDK.Instance.LoginFederatedByStudio(uuid);
+            }
+        }
         status = login != null && PlaySuperUnitySDK.IsLoggedIn()
             ? "Guest login OK — open the store."
-            : "Login failed (see logcat). Store will still open; log in inside it if it offers to.";
+            : "Login FAILED — check the API key (must be a prod game key) and adb logcat -s Unity. Don't open the store yet.";
     }
 
     private void OpenStore()
