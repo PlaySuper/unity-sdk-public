@@ -454,12 +454,12 @@ namespace PlaySuperUnity
             // Layer 1: warm DNS / TCP / TLS / HTTP cache — cross-platform, off-thread.
             _ = PrefetchStoreResources(storeUrl);
 
-            // Layer 2: load libwebviewchromium.so without instantiating a WebView.
-            // Android-only — iOS WebKit is already linked into every process and
-            // WKWebView content-process boot is async, so there is no main-thread
-            // cost to dodge there.
+            // Layer 2: warm the Chromium/WebView provider on the Android UI thread,
+            // but only when the main looper is idle. Android-only — iOS WebKit is
+            // already linked into every process and WKWebView content-process boot
+            // is async, so there is no main-thread cost to dodge there.
 #if UNITY_ANDROID && !UNITY_EDITOR
-            WarmChromiumOffUiThread();
+            WarmChromiumOnIdle();
 #endif
         }
 
@@ -500,58 +500,116 @@ namespace PlaySuperUnity
 
 #if UNITY_ANDROID && !UNITY_EDITOR
         /// <summary>
-        /// Load libwebviewchromium.so and initialize the Chromium provider on a
-        /// worker thread, without ever constructing a WebView.
+        /// Warm the WebView/Chromium provider on the Android UI thread during an
+        /// idle moment, so the first real OpenStore() does not pay Chromium's
+        /// heavy engine-init cost on the UI thread while the user is waiting.
         ///
-        /// Previously this method posted a Runnable to the Android UI thread that
-        /// did `new WebView(activity); destroy();` to trigger engine init. On low-
-        /// end Vivo/Realme/Xiaomi devices that single call blocked Thread 1 "main"
-        /// for several seconds inside libwebviewchromium.so JNI frames and was
-        /// observed as the dominant user-perceived ANR signature on the affected
-        /// game (Play Console issue 89a40858d196a8f5d014721c5dd3cc87).
+        /// History: an earlier version posted `new WebView(activity); destroy();`
+        /// to the UI thread, which blocked Thread 1 "main" for seconds inside
+        /// libwebviewchromium.so on low-end devices — the dominant user-perceived
+        /// ANR signature on the affected game (Play Console issue
+        /// 89a40858d196a8f5d014721c5dd3cc87). A follow-up moved the warm to a
+        /// background thread (startSafeBrowsing), but WebView init has UI-thread
+        /// affinity and takes a process-global provider lock, so an off-thread
+        /// warm fights that model and only partially warms the construction path.
         ///
-        /// WebView.startSafeBrowsing (API 27+) loads the same native libs and
-        /// initializes the Chromium provider but runs entirely on Chromium's own
-        /// threads — it never touches the Android UI thread, never constructs a
-        /// View, and never attaches a surface. We pass null for the callback
-        /// because we do not need the safe-browsing-ready boolean.
+        /// This version registers a one-shot MessageQueue.IdleHandler on the UI
+        /// thread: the heavy Chromium provider init runs once, early, but only
+        /// when the Android main looper is idle — so it never blocks a frame the
+        /// user is waiting on. WebSettings.getDefaultUserAgent(context) is the
+        /// documented lightweight call that forces WebViewFactory.getProvider()
+        /// (the expensive one-time engine/provider load) without constructing a
+        /// View or attaching a surface.
         /// </summary>
-        private static void WarmChromiumOffUiThread()
+        private static void WarmChromiumOnIdle()
         {
             if (isPrewarmed) return;
             isPrewarmed = true;
 
-            AndroidJavaClass unityPlayer;
             AndroidJavaObject activity;
             try
             {
-                unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer");
-                activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
+                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                {
+                    activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity");
+                }
+                if (activity == null)
+                {
+                    Debug.LogWarning("[PlaySuper] Chromium warm skipped — no currentActivity");
+                    return;
+                }
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[PlaySuper] Chromium warm skipped — could not resolve currentActivity: {ex.Message}");
+                Debug.LogWarning($"[PlaySuper] Chromium warm skipped: {ex.Message}");
                 return;
             }
 
-            Task.Run(() =>
+            // MessageQueue is per-thread, so register the idle handler from the
+            // UI thread itself. Looper.myQueue() (API 1) then returns the main
+            // queue — unlike Looper.getQueue() which is API 23+.
+            var register = new AndroidJavaRunnable(() =>
             {
                 try
                 {
-                    using (var webViewClass = new AndroidJavaClass("android.webkit.WebView"))
+                    using (var looper = new AndroidJavaClass("android.os.Looper"))
+                    using (var queue = looper.CallStatic<AndroidJavaObject>("myQueue"))
                     {
-                        webViewClass.CallStatic("startSafeBrowsing", activity, null);
+                        queue.Call("addIdleHandler", new IdleChromiumWarmer(activity));
                     }
-                    Debug.Log("[PlaySuper] Chromium warmed via startSafeBrowsing (off UI thread)");
                 }
                 catch (Exception ex)
                 {
-                    // Older WebView providers may not implement startSafeBrowsing.
-                    // Silent fall-back to no engine warm is fine — the HEAD prefetch
-                    // still runs and the WebView creates on first real OpenStore.
-                    Debug.LogWarning($"[PlaySuper] startSafeBrowsing unavailable, skipping engine warm: {ex.Message}");
+                    Debug.LogWarning($"[PlaySuper] IdleHandler registration failed: {ex.Message}");
                 }
             });
+
+            try
+            {
+                activity.Call("runOnUiThread", register);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] runOnUiThread failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// One-shot <c>MessageQueue.IdleHandler</c>: warms the WebView provider the
+        /// first time the Android main thread goes idle, then removes itself by
+        /// returning <c>false</c> from <c>queueIdle()</c>.
+        /// </summary>
+        private class IdleChromiumWarmer : AndroidJavaProxy
+        {
+            private readonly AndroidJavaObject _context;
+
+            public IdleChromiumWarmer(AndroidJavaObject context)
+                : base("android.os.MessageQueue$IdleHandler")
+            {
+                _context = context;
+            }
+
+            // bool queueIdle() — return false to run exactly once, then detach.
+            // Must be public: AndroidJavaProxy resolves proxy methods by name via
+            // reflection and only binds public members.
+            public bool queueIdle()
+            {
+                try
+                {
+                    using (var webSettings = new AndroidJavaClass("android.webkit.WebSettings"))
+                    {
+                        webSettings.CallStatic<string>("getDefaultUserAgent", _context);
+                    }
+                    Debug.Log("[PlaySuper] Chromium warmed on idle (provider initialized)");
+                }
+                catch (Exception ex)
+                {
+                    // Any provider quirk: silent fall-back. The HEAD prefetch still
+                    // ran and the WebView will create on first real OpenStore.
+                    Debug.LogWarning($"[PlaySuper] Chromium idle warm failed: {ex.Message}");
+                }
+                return false;
+            }
         }
 #endif
 
