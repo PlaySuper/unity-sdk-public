@@ -183,7 +183,6 @@ namespace PlaySuperUnity
                     { "rss_kb", info.Call<long>("getRss") },
                     { "process_name", SafeString(info, "getProcessName") },
                     { "exit_timestamp_ms", ts },
-                    { "sdk_version", Constants.SDK_VERSION },
                     { "game_version", gameVersion },
                     { "game_version_code", gameVersionCode },
                 };

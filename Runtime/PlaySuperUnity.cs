@@ -2544,6 +2544,7 @@ namespace PlaySuperUnity
 
                     // App info
                     $@"""app_version"": ""{Application.version}""",
+                    $@"""sdk_version"": ""{Constants.SDK_VERSION}""",
 
                     // Platform & Device
                     $@"""platform"": ""{Application.platform}""",
