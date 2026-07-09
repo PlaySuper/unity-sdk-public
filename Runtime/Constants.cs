@@ -21,6 +21,10 @@ namespace PlaySuperUnity
             public const string PREVIOUS_EXIT_OBSERVED = "ps_sdk.previous_exit";
         }
 
+        // SDK version — keep in sync with package.json. Attached to telemetry
+        // (e.g. ps_sdk.previous_exit) so events can be sliced by SDK version.
+        internal const string SDK_VERSION = "4.3.0";
+
         // Analytics API endpoints (same as playsuper-store and playsuper-api)
         internal const string PS_ANALYTICS_URL = "https://analytics.playsuper.club";
         internal const string PS_ANALYTICS_EVENT_URL = PS_ANALYTICS_URL + "/events/track";
