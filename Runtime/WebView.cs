@@ -20,6 +20,18 @@ namespace PlaySuperUnity
         private const string CustomScheme = "psbridge";
         private const string LegacyScheme = "USER_CUSTOM_SCHEME";
 
+        // UPI / payment-app URL schemes emitted by the Cashfree checkout when the
+        // user taps a UPI app. Intercepted via GPM's scheme list (interception
+        // cancels the WebView navigation — a WebView cannot load these itself)
+        // and launched natively in LaunchExternalPaymentApp. "intent:" is the
+        // Chrome-style wrapper some apps use and needs Intent.parseUri on Android.
+        private static readonly List<string> PaymentAppSchemes = new List<string>
+        {
+            "upi:", "intent:", "tez:", "phonepe:", "paytmmp:", "gpay:", "credpay:", "bhim:"
+        };
+
+        private static string cachedPatchedUserAgent;
+
         /// <summary>
         /// Build the store URL with credentials and utm_content as query params.
         /// The store consumes these synchronously on render (via themeProvider),
@@ -50,6 +62,131 @@ namespace PlaySuperUnity
             return $"{baseUrl}{separator}{string.Join("&", queryParams)}";
         }
 
+        /// <summary>
+        /// Android default WebView user agent with the "; wv" and "Version/4.0"
+        /// WebView markers stripped, so the store presents as regular mobile
+        /// Chrome. Cashfree (and other PSPs) hide the UPI Intent app buttons
+        /// when they detect a WebView UA — they can't know the host handles
+        /// upi:// links. We do (see PaymentAppSchemes), so opting out of the
+        /// marker is safe and restores UPI at checkout.
+        /// Returns empty on iOS/Editor or on failure → GPM keeps its default UA
+        /// (its native side only applies non-empty values).
+        /// </summary>
+        private static string GetPatchedUserAgent()
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (cachedPatchedUserAgent != null) return cachedPatchedUserAgent;
+            try
+            {
+                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (var webSettings = new AndroidJavaClass("android.webkit.WebSettings"))
+                {
+                    string ua = webSettings.CallStatic<string>("getDefaultUserAgent", activity);
+                    if (!string.IsNullOrEmpty(ua))
+                    {
+                        cachedPatchedUserAgent = ua.Replace("; wv", "").Replace("Version/4.0 ", "");
+                        return cachedPatchedUserAgent;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[PlaySuper] Could not derive patched user agent: {ex.Message}");
+            }
+            return string.Empty;
+#else
+            return string.Empty;
+#endif
+        }
+
+        private static List<string> GetSchemeList()
+        {
+            var schemes = new List<string> { CustomScheme, LegacyScheme };
+#if UNITY_ANDROID
+            // Android only — iOS checkout behavior is deliberately untouched.
+            schemes.AddRange(PaymentAppSchemes);
+#endif
+            return schemes;
+        }
+
+        private static bool IsPaymentAppUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return false;
+            foreach (string scheme in PaymentAppSchemes)
+            {
+                if (url.StartsWith(scheme, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Hand a payment-app URL to the OS. The WebView stays open underneath;
+        /// when the user returns from the UPI app, the checkout page resumes its
+        /// own payment-status polling.
+        /// </summary>
+        private static void LaunchExternalPaymentApp(string url)
+        {
+            Debug.Log($"[PlaySuper] Launching external payment app for scheme: {url.Split(':')[0]}");
+#if UNITY_ANDROID && !UNITY_EDITOR
+            if (url.StartsWith("intent:", StringComparison.OrdinalIgnoreCase))
+            {
+                LaunchAndroidIntentUri(url);
+                return;
+            }
+#endif
+            Application.OpenURL(url);
+        }
+
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private static void LaunchAndroidIntentUri(string url)
+        {
+            try
+            {
+                using (var unityPlayer = new AndroidJavaClass("com.unity3d.player.UnityPlayer"))
+                using (var activity = unityPlayer.GetStatic<AndroidJavaObject>("currentActivity"))
+                using (var intentClass = new AndroidJavaClass("android.content.Intent"))
+                using (var intent = intentClass.CallStatic<AndroidJavaObject>(
+                    "parseUri", url, 1 /* Intent.URI_INTENT_SCHEME */))
+                {
+                    activity.Call("startActivity", intent);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Target app not installed (ActivityNotFoundException) or bad URI.
+                Debug.LogWarning($"[PlaySuper] Could not launch payment intent: {ex.Message}");
+                string fallback = ExtractIntentFallbackUrl(url);
+                if (!string.IsNullOrEmpty(fallback))
+                {
+                    Application.OpenURL(fallback);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Extract the Chrome-convention S.browser_fallback_url extra from an
+        /// intent: URI, used when the target app is not installed.
+        /// </summary>
+        private static string ExtractIntentFallbackUrl(string intentUrl)
+        {
+            const string key = "S.browser_fallback_url=";
+            int i = intentUrl.IndexOf(key, StringComparison.OrdinalIgnoreCase);
+            if (i < 0) return null;
+            int start = i + key.Length;
+            int end = intentUrl.IndexOf(';', start);
+            string encoded = end < 0 ? intentUrl.Substring(start) : intentUrl.Substring(start, end - start);
+            try
+            {
+                return Uri.UnescapeDataString(encoded);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+#endif
+
         public static void ShowUrlFullScreen(bool isDev = false, string url = null, string utmContent = null)
         {
             // Show branded loading screen instantly so the user gets visual
@@ -73,13 +210,14 @@ namespace PlaySuperUnity
                     style = GpmWebViewStyle.FULLSCREEN,
                     orientation = GpmOrientation.PORTRAIT,
                     isNavigationBarVisible = false,
+                    userAgentString = GetPatchedUserAgent(),
 #if UNITY_IOS
                     contentMode = GpmWebViewContentMode.MOBILE,
 #endif
                     supportMultipleWindows = true,
                 },
                 OnCallback,
-                new List<string>() { CustomScheme, LegacyScheme }
+                GetSchemeList()
             );
         }
 
@@ -101,6 +239,7 @@ namespace PlaySuperUnity
                     style = GpmWebViewStyle.POPUP,
                     orientation = GpmOrientation.PORTRAIT,
                     isNavigationBarVisible = false,
+                    userAgentString = GetPatchedUserAgent(),
 #if UNITY_IOS
                     contentMode = GpmWebViewContentMode.MOBILE,
                     isMaskViewVisible = true,
@@ -108,7 +247,7 @@ namespace PlaySuperUnity
                     supportMultipleWindows = true,
                 },
                 OnCallback,
-                new List<string>() { CustomScheme, LegacyScheme }
+                GetSchemeList()
             );
         }
 
@@ -131,6 +270,7 @@ namespace PlaySuperUnity
                     style = GpmWebViewStyle.POPUP,
                     orientation = GpmOrientation.PORTRAIT,
                     isNavigationBarVisible = false,
+                    userAgentString = GetPatchedUserAgent(),
 #if UNITY_IOS
                     contentMode = GpmWebViewContentMode.MOBILE,
                     isMaskViewVisible = true,
@@ -150,7 +290,7 @@ namespace PlaySuperUnity
                     supportMultipleWindows = true,
                 },
                 OnCallback,
-                new List<string>() { CustomScheme, LegacyScheme }
+                GetSchemeList()
             );
         }
 
@@ -287,6 +427,14 @@ namespace PlaySuperUnity
                     {
                         GpmWebView.Close();
                     }
+#if UNITY_ANDROID
+                    else if (IsPaymentAppUrl(data))
+                    {
+                        // UPI Intent tap from the Cashfree checkout — open the
+                        // payment app; the WebView stays open for status polling.
+                        LaunchExternalPaymentApp(data);
+                    }
+#endif
                     break;
             }
         }
