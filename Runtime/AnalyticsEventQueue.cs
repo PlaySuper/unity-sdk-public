@@ -373,24 +373,43 @@ namespace PlaySuperUnity
                     return null;
                 }
 
-                // Find matching closing brace
+                // Find the matching closing brace. Braces that appear *inside*
+                // JSON string values (e.g. an ANR/crash `description` like
+                // "ANR in ... {main}") must NOT be counted — otherwise the scan
+                // ends early or never balances and the event is dropped/corrupted.
+                // So track whether we're inside a quoted string and skip its
+                // contents, honoring backslash escapes.
                 int braceCount = 0;
-                int endIndex = startIndex;
+                int endIndex = -1;
+                bool inString = false;
+                bool escaped = false;
 
                 for (int i = startIndex; i < payloadJson.Length; i++)
                 {
                     char c = payloadJson[i];
-                    if (c == '{') braceCount++;
-                    else if (c == '}') braceCount--;
 
-                    if (braceCount == 0)
+                    if (inString)
                     {
-                        endIndex = i;
-                        break;
+                        if (escaped) escaped = false;
+                        else if (c == '\\') escaped = true;
+                        else if (c == '"') inString = false;
+                        continue;
+                    }
+
+                    if (c == '"') { inString = true; continue; }
+                    if (c == '{') braceCount++;
+                    else if (c == '}')
+                    {
+                        braceCount--;
+                        if (braceCount == 0)
+                        {
+                            endIndex = i;
+                            break;
+                        }
                     }
                 }
 
-                if (braceCount != 0)
+                if (endIndex < 0 || braceCount != 0)
                 {
                     return null; // Unbalanced braces
                 }
