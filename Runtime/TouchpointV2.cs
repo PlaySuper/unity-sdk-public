@@ -133,8 +133,6 @@ namespace PlaySuperUnity
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public TouchpointV2Coins coins;
-
-        public TouchpointV2Cta cta;
     }
 
     /// <summary>
@@ -153,8 +151,22 @@ namespace PlaySuperUnity
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public TouchpointV2Asset asset;
 
+        /// <summary>
+        /// The offer inside the frame. Null for a STATIC touchpoint, which
+        /// sends the player to a destination rather than showing one offer —
+        /// so this being null is a normal state, not a missing one.
+        /// </summary>
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public TouchpointV2Item item;
+
+        /// <summary>
+        /// Where tapping the touchpoint goes. Response-level rather than on the
+        /// item, because a STATIC touchpoint has no item to carry it: dynamic
+        /// resolves the offer's own destination, static the configured
+        /// storefront. One field to read either way.
+        /// </summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public TouchpointV2Cta cta;
 
         /// <summary>ISO-8601 timestamp the server composed this at.</summary>
         public string servedAt;
@@ -164,15 +176,27 @@ namespace PlaySuperUnity
         /// <summary>
         /// Whether there is something to draw.
         /// <para>
-        /// The API returns asset and item together or not at all — a frame with
-        /// an empty centre reads as a broken build — so this single check is
-        /// enough before rendering. Check it rather than null-testing the
-        /// response: a successful call with nothing configured is a 200, and is
-        /// a normal state rather than a failure.
+        /// The real precondition is artwork plus a destination: something to
+        /// show and somewhere to send the player. It used to require an item,
+        /// which made a STATIC touchpoint — artwork and a storefront link, no
+        /// offer — indistinguishable from nothing configured.
+        /// </para>
+        /// <para>
+        /// Check this rather than null-testing the response: a successful call
+        /// with nothing configured is a 200, and is a normal state rather than
+        /// a failure.
         /// </para>
         /// </summary>
         [JsonIgnore]
-        public bool HasTouchpoint => asset != null && item != null;
+        public bool HasTouchpoint => asset != null && cta != null;
+
+        /// <summary>
+        /// True when the frame carries a live offer, false for a STATIC
+        /// touchpoint. Use it to decide whether to draw the offer art and
+        /// price, not to decide whether to draw anything at all.
+        /// </summary>
+        [JsonIgnore]
+        public bool HasOffer => item != null;
 
         /// <summary>Convenience: the frame image, or null when nothing is configured.</summary>
         [JsonIgnore]
@@ -259,7 +283,7 @@ namespace PlaySuperUnity
         /// if (tp != null &amp;&amp; tp.HasTouchpoint)
         /// {
         ///     // draw tp.FrameImageUrl, with tp.OfferImageUrl in its centre
-        ///     // button label: tp.item.cta.label
+        ///     // button label: tp.cta.label
         /// }
         /// </code>
         /// </example>
@@ -335,6 +359,8 @@ namespace PlaySuperUnity
                 {
                     webRequest.SetRequestHeader("Accept", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    webRequest.SetRequestHeader("x-sdk-name", Constants.SDK_NAME);
+                    webRequest.SetRequestHeader("x-sdk-version", Constants.SDK_VERSION);
 
                     // Sent when the player is signed in so the offer can be
                     // priced for them. The endpoint authenticates on the API
@@ -395,7 +421,7 @@ namespace PlaySuperUnity
         /// <param name="touchpoint">The response a <see cref="Serve"/> call returned.</param>
         public static void OpenCta(TouchpointV2Response touchpoint)
         {
-            var url = touchpoint?.item?.cta?.url;
+            var url = touchpoint?.cta?.url;
 
             if (string.IsNullOrEmpty(url))
             {
