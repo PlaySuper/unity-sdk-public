@@ -306,6 +306,7 @@ namespace PlaySuperUnity
             {
                 webRequest.SetRequestHeader("Accept", "application/json");
                 webRequest.SetRequestHeader("x-api-key", apiKey);
+                PlaySuperUnitySDK.ApplyGameUuidHeader(webRequest);
 
                 var operation = webRequest.SendWebRequest();
                 while (!operation.isDone)
@@ -322,8 +323,7 @@ namespace PlaySuperUnity
 
                 var result = new CuratedListResponse { type = type };
 
-                // Determine store URL based on environment
-                string storeUrl = baseUrl == Constants.devApiUrl ? Constants.devStoreUrl : Constants.prodStoreUrl;
+                string storeUrl = SdkEndpoints.StoreUrl;
 
                 if (type == CuratedListType.Products)
                 {

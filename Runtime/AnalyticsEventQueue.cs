@@ -443,6 +443,7 @@ namespace PlaySuperUnity
                     request.uploadHandler = new UnityEngine.Networking.UploadHandlerRaw(bodyRaw);
                     request.downloadHandler = new UnityEngine.Networking.DownloadHandlerBuffer();
                     request.SetRequestHeader("Content-Type", "application/json");
+                    PlaySuperUnitySDK.ApplyGameUuidHeader(request);
                     request.timeout = 30;
 
                     var operation = request.SendWebRequest();

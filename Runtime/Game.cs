@@ -18,6 +18,7 @@ namespace PlaySuperUnity
                     using (var webRequest = UnityWebRequest.Get($"{baseUrl}/player/game"))
                     {
                         webRequest.SetRequestHeader("x-api-key", apiKey);
+                        PlaySuperUnitySDK.ApplyGameUuidHeader(webRequest);
                         var operation = webRequest.SendWebRequest();
                         while (!operation.isDone)
                             await Task.Yield();

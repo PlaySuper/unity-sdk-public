@@ -200,7 +200,7 @@ namespace PlaySuperUnity
             // Set to portrait for the WebView
             Screen.orientation = ScreenOrientation.Portrait;
 
-            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : SdkEndpoints.StoreUrl;
             string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
@@ -229,7 +229,7 @@ namespace PlaySuperUnity
             // Set to portrait for the WebView
             Screen.orientation = ScreenOrientation.Portrait;
 
-            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : SdkEndpoints.StoreUrl;
             string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
@@ -260,7 +260,7 @@ namespace PlaySuperUnity
             Screen.orientation = ScreenOrientation.Portrait;
 
             Rect safeArea = Screen.safeArea;
-            string baseUrl = !string.IsNullOrEmpty(url) ? url : (isDev ? Constants.devStoreUrl : Constants.prodStoreUrl);
+            string baseUrl = !string.IsNullOrEmpty(url) ? url : SdkEndpoints.StoreUrl;
             string targetUrl = BuildStoreUrl(baseUrl, utmContent);
 
             GpmWebView.ShowUrl(
@@ -358,8 +358,9 @@ namespace PlaySuperUnity
                         break;
                     }
 
-                    // More reliable URL check
-                    if (data.Contains("store.playsuper.club"))
+                    // More reliable URL check. Matches the remote store host as well as
+                    // the baked ones, so a store move keeps receiving credentials.
+                    if (SdkEndpoints.IsStoreUrl(data))
                     {
                         Debug.Log("Store URL detected - Injecting credentials");
                         InjectCredentials();
@@ -369,7 +370,7 @@ namespace PlaySuperUnity
                 case GpmWebViewCallback.CallbackType.PageLoad:
                     // iOS 26+ rejects ExecuteJavaScript at PageStarted (document not ready).
                     // Re-inject here once the JS context is committed.
-                    if (data != null && data.Contains("store.playsuper.club"))
+                    if (SdkEndpoints.IsStoreUrl(data))
                     {
                         InjectCredentials();
                     }
@@ -597,7 +598,7 @@ namespace PlaySuperUnity
         /// </summary>
         public static void Prewarm(bool isDev)
         {
-            string storeUrl = isDev ? Constants.devStoreUrl : Constants.prodStoreUrl;
+            string storeUrl = SdkEndpoints.StoreUrl;
 
             // Layer 1: warm DNS / TCP / TLS / HTTP cache — cross-platform, off-thread.
             _ = PrefetchStoreResources(storeUrl);

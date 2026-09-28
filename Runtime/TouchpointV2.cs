@@ -335,6 +335,7 @@ namespace PlaySuperUnity
                 {
                     webRequest.SetRequestHeader("Accept", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    PlaySuperUnitySDK.ApplyGameUuidHeader(webRequest);
 
                     // Sent when the player is signed in so the offer can be
                     // priced for them. The endpoint authenticates on the API

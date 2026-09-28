@@ -23,7 +23,7 @@ namespace PlaySuperUnity
 
         // SDK version — keep in sync with package.json. Attached to telemetry
         // (e.g. ps_sdk.previous_exit) so events can be sliced by SDK version.
-        internal const string SDK_VERSION = "4.3.1";
+        internal const string SDK_VERSION = "4.6.0";
 
         // Analytics API endpoints (same as playsuper-store and playsuper-api)
         internal const string PS_ANALYTICS_URL = "https://analytics.playsuper.club";
@@ -45,8 +45,21 @@ namespace PlaySuperUnity
         internal const string devStoreUrl = "https://dev-store.playsuper.club/";
         internal const string prodStoreUrl = "https://store.playsuper.club/";
 
+        // Baked fallbacks. The live values come from SdkEndpoints, which can
+        // override them from SDK_CONFIG_URL below.
         internal const string devApiUrl = "https://dev.playsuper.club";
         internal const string prodApiUrl = "https://api.playsuper.club";
+
+        // Remote endpoint config (see SdkEndpoints for the format). On Google Cloud
+        // Storage rather than playsuper.club so it answers when our own domain does
+        // not. Versioned in the path: a v2 format gets a new file, and SDKs that only
+        // know v1 keep reading this one.
+        internal const string SDK_CONFIG_URL = "https://storage.googleapis.com/playsuper-sdk-config/v1/sdk-config.json";
+
+        // The game's own player uuid (the one passed to CreatePlayerWithUuid /
+        // LoginFederatedByStudio). Sent on PlaySuper requests except the routes where
+        // the API lets it override the Bearer token — see PlaySuperUnitySDK.GameUuidKey.
+        internal const string GAME_UUID_HEADER = "x-game-uuid";
 
         // Analytics Event Queue
         internal const float PROCESS_INTERVAL = 30f;

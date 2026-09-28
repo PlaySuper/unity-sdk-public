@@ -20,7 +20,8 @@ namespace PlaySuperUnity
         private static PlaySuperUnitySDK _instance;
         private static string apiKey;
         private static string authToken;
-        private static string baseUrl;
+        // Resolved per request so a remote endpoint switch applies to the next call.
+        private static string baseUrl => SdkEndpoints.ApiUrl;
         private static ProfileData profile;
         private static bool isDev;
         private static bool enableAdvertisingId = false;
@@ -162,7 +163,7 @@ namespace PlaySuperUnity
                 // Initialize core SDK first
                 string env = Environment.GetEnvironmentVariable("PROJECT_ENV") ?? "production";
                 isDev = _isDev;
-                baseUrl = (env == "development" || _isDev) ? Constants.devApiUrl : Constants.prodApiUrl;
+                SdkEndpoints.Initialize(env == "development" || _isDev);
                 apiKey = _apiKey;
                 enableAdvertisingId = _enableAdvertisingId;
                 hasTrackingPermission = false; // Always start as false - game dev must explicitly enable
@@ -183,6 +184,7 @@ namespace PlaySuperUnity
                 {
                     profile = LoadCachedProfile();
                 }
+                LoadGameUuid();
 
                 // Create SDK GameObject
                 GameObject sdkObject = new GameObject("PlaySuper");
@@ -197,6 +199,9 @@ namespace PlaySuperUnity
 
                 // Start flag fetching after core SDK is ready
                 _ = FetchFlagsInitialAndSchedule();
+
+                // Remote API / store endpoints (fire-and-forget; baked URLs until it answers)
+                _ = SdkEndpoints.RefreshFromConfig(force: true);
 
                 // Pre-warm WebView engine for faster OpenStore (fire-and-forget)
                 WebView.Prewarm(isDev);
@@ -516,6 +521,7 @@ namespace PlaySuperUnity
                     webRequest.SetRequestHeader("Content-Type", "application/json");
                     webRequest.SetRequestHeader("Accept", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    ApplyGameUuidHeader(webRequest);
                     var operation = webRequest.SendWebRequest();
                     while (!operation.isDone)
                         await Task.Yield();
@@ -526,6 +532,7 @@ namespace PlaySuperUnity
                         var createResponse = JsonUtility.FromJson<CreatePlayerResponse>(responseContent);
                         if (createResponse?.data != null)
                         {
+                            RememberGameUuid(uuid);
                             Debug.Log("[PlaySuper] Player created successfully: " + createResponse.data.playerId);
                         }
                         else
@@ -566,6 +573,7 @@ namespace PlaySuperUnity
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    ApplyGameUuidHeader(webRequest);
                     var operation = webRequest.SendWebRequest();
                     while (!operation.isDone)
                         await Task.Yield();
@@ -578,6 +586,7 @@ namespace PlaySuperUnity
                         {
                             authToken = loginResponse.access_token;
                             PlayerPrefs.SetString("authToken", authToken);
+                            RememberGameUuid(uuid);
                             PlayerPrefsSaveManager.ScheduleSave();
                             profile = await ProfileManager.GetProfileData();
                             PersistProfile(profile);
@@ -661,6 +670,7 @@ namespace PlaySuperUnity
                         webRequest.downloadHandler = new DownloadHandlerBuffer();
                         webRequest.SetRequestHeader("Content-Type", "application/json");
                         webRequest.SetRequestHeader("Accept", "application/json");
+                        ApplyGameUuidHeader(webRequest);
                         var operation = webRequest.SendWebRequest();
                         while (!operation.isDone)
                             await Task.Yield();
@@ -1041,6 +1051,7 @@ namespace PlaySuperUnity
                 {
                     webRequest.SetRequestHeader("Accept", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    ApplyGameUuidHeader(webRequest);
                     var operation = webRequest.SendWebRequest();
                     while (!operation.isDone)
                         await Task.Yield();
@@ -1165,6 +1176,40 @@ namespace PlaySuperUnity
             return authToken;
         }
 
+        /// <summary>
+        /// Tell the SDK your game's own id for the current player — the same uuid you
+        /// pass to CreatePlayerWithUuid / LoginFederatedByStudio. It is sent as the
+        /// x-game-uuid header so PlaySuper can recognise the player (e.g. to recommend
+        /// products in touchpoints) before they sign in. Call it as soon as your game
+        /// knows who the player is; it is saved on the device, so once is enough.
+        /// CreatePlayerWithUuid and LoginFederatedByStudio set it automatically.
+        /// Pass null to clear it (e.g. when the player switches game accounts);
+        /// Logout() also clears it.
+        /// </summary>
+        /// <param name="uuid">Printable ASCII, no leading or trailing spaces.</param>
+        /// <example>
+        /// PlaySuperUnitySDK.Initialize(apiKey);
+        /// PlaySuperUnitySDK.SetGameUuid(myGame.CurrentUser.Id);
+        /// </example>
+        public static void SetGameUuid(string uuid)
+        {
+            if (string.IsNullOrEmpty(uuid))
+            {
+                ClearGameUuid();
+                PlayerPrefsSaveManager.ScheduleSave();
+                Debug.Log("[PlaySuper] Game uuid cleared");
+                return;
+            }
+
+            if (!IsValidHeaderValue(uuid))
+            {
+                Debug.LogWarning("[PlaySuper] SetGameUuid ignored - uuid must be printable ASCII with no leading or trailing spaces");
+                return;
+            }
+
+            RememberGameUuid(uuid);
+        }
+
         public static async void SetAuthToken(string token)
         {
             try
@@ -1248,6 +1293,7 @@ namespace PlaySuperUnity
                     webRequest.SetRequestHeader("Content-Type", "application/json");
                     webRequest.SetRequestHeader("Accept", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    ApplyGameUuidHeader(webRequest);
                     webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
                     var operation = webRequest.SendWebRequest();
                     while (!operation.isDone)
@@ -1424,6 +1470,8 @@ namespace PlaySuperUnity
             else
             {
                 Debug.Log("[PlaySuper] App resuming - checking for pending transactions");
+                // At most once an hour; a no-op 304 when the config has not changed
+                _ = SdkEndpoints.RefreshFromConfig();
                 // Sync any pending local transactions when app resumes
                 _ = SyncPendingLocalTransactionsAsync();
                 // Try to flush any events that accumulated during pause
@@ -1576,6 +1624,65 @@ namespace PlaySuperUnity
             {
                 Debug.LogError($"[PlaySuper][Flags] Failed to initialize feature flags: {ex.Message}");
             }
+        }
+
+        // The game's own id for the player — the uuid passed to CreatePlayerWithUuid /
+        // LoginFederatedByStudio — sent as x-game-uuid so the API can recognise the
+        // player (e.g. for touchpoint recommendations) even before they sign in.
+        //
+        // NOT sent on the routes where the API resolves the player from x-game-uuid
+        // ahead of the Bearer token (and creates one if none exists): coin distribute
+        // and deduct, /player/funds, /player/sdk-transactions (+ commit, commit-by-ids)
+        // and /player/mark-store-visited. There, a uuid for a different player than the
+        // token's would move coins and purchase sync onto the wrong account. Those
+        // calls always carry the token, so the header adds nothing to them. Check the
+        // API's handling before adding the header to any new route.
+        private const string GameUuidKey = "ps_game_uuid";
+        private static string gameUuid;
+
+        private static void RememberGameUuid(string uuid)
+        {
+            if (uuid == gameUuid || !IsValidHeaderValue(uuid)) return;
+            gameUuid = uuid;
+            PlayerPrefs.SetString(GameUuidKey, uuid);
+            PlayerPrefsSaveManager.ScheduleSave();
+        }
+
+        private static void LoadGameUuid()
+        {
+            string uuid = PlayerPrefs.GetString(GameUuidKey, "");
+            gameUuid = IsValidHeaderValue(uuid) ? uuid : null;
+        }
+
+        private static void ClearGameUuid()
+        {
+            gameUuid = null;
+            PlayerPrefs.DeleteKey(GameUuidKey);
+        }
+
+        // Sent as-is so it matches the uuid the player was created with — escaping
+        // would make the API look up a different identifier. A value that cannot go
+        // in a header unchanged (non-printable/non-ASCII, or padded with whitespace
+        // the server would trim) is not sent at all rather than sent altered.
+        private static bool IsValidHeaderValue(string value)
+        {
+            if (string.IsNullOrEmpty(value) || value.Trim() != value) return false;
+            foreach (char c in value)
+            {
+                if (c < 0x20 || c > 0x7E) return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Attach the game's player uuid to a request to a PlaySuper endpoint.
+        /// No-op until the game has called CreatePlayerWithUuid or LoginFederatedByStudio.
+        /// See the note on <see cref="GameUuidKey"/> for the routes that must not get it.
+        /// </summary>
+        internal static void ApplyGameUuidHeader(UnityWebRequest request)
+        {
+            if (!string.IsNullOrEmpty(gameUuid))
+                request.SetRequestHeader(Constants.GAME_UUID_HEADER, gameUuid);
         }
 
         #region SDK Transaction Sync
@@ -2062,6 +2169,7 @@ namespace PlaySuperUnity
             profile = null;
             PlayerPrefs.DeleteKey("authToken");
             PlayerPrefs.DeleteKey(ProfileCacheKey);
+            ClearGameUuid();
 
             ClearUserProperties();
             ClearSdkTransactionSyncState();

@@ -484,6 +484,7 @@ namespace PlaySuperUnity
                 {
                     webRequest.SetRequestHeader("Accept", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    PlaySuperUnitySDK.ApplyGameUuidHeader(webRequest);
                     if (!string.IsNullOrEmpty(authToken))
                         webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
 
@@ -550,6 +551,7 @@ namespace PlaySuperUnity
                 {
                     webRequest.SetRequestHeader("Accept", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    PlaySuperUnitySDK.ApplyGameUuidHeader(webRequest);
                     if (!string.IsNullOrEmpty(authToken))
                         webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
 
@@ -608,6 +610,7 @@ namespace PlaySuperUnity
                 {
                     webRequest.SetRequestHeader("Accept", "application/json");
                     webRequest.SetRequestHeader("x-api-key", apiKey);
+                    PlaySuperUnitySDK.ApplyGameUuidHeader(webRequest);
                     if (!string.IsNullOrEmpty(authToken))
                         webRequest.SetRequestHeader("Authorization", $"Bearer {authToken}");
 
