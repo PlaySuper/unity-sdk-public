@@ -156,6 +156,16 @@ namespace PlaySuperUnity
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public TouchpointV2Item item;
 
+        /// <summary>
+        /// Dynamic Asset attribution token, present only for cohort-enabled
+        /// games. The server appends the same value to the CTA URL as
+        /// <c>pick_id</c>; <see cref="TouchpointV2Manager.TrackImpression"/>
+        /// attaches it to <c>ps_sdk.touchpoint_impressed</c> so the funnel can
+        /// join impression → click → order.
+        /// </summary>
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string pickId;
+
         /// <summary>ISO-8601 timestamp the server composed this at.</summary>
         public string servedAt;
 
@@ -380,6 +390,48 @@ namespace PlaySuperUnity
                 Debug.LogError($"[PlaySuper] Unexpected error in Serve: {e.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Report that a served touchpoint was actually drawn on screen.
+        ///
+        /// <para>
+        /// Call this once, right after rendering the frame returned by
+        /// <see cref="Serve"/> (a <c>Serve</c> call alone is not an impression —
+        /// the game may fetch and never show it). Emits
+        /// <c>ps_sdk.touchpoint_impressed</c> carrying the response's
+        /// <c>pick_id</c>, screen, placement and item, which is what lets the
+        /// Dynamic Asset funnel measure impression → click → order. Fire-and-forget
+        /// and safe to call with a no-touchpoint response (it does nothing).
+        /// </para>
+        /// </summary>
+        /// <param name="touchpoint">The response a <see cref="Serve"/> call returned.</param>
+        public static void TrackImpression(TouchpointV2Response touchpoint)
+        {
+            if (touchpoint == null || !touchpoint.HasTouchpoint)
+            {
+                return;
+            }
+
+            var props = new Dictionary<string, object>();
+            if (!string.IsNullOrEmpty(touchpoint.pickId))
+                props["pick_id"] = touchpoint.pickId;
+            if (!string.IsNullOrEmpty(touchpoint.screen))
+            {
+                props["touchpointName"] = touchpoint.screen;
+                props["screen"] = touchpoint.screen;
+            }
+            if (!string.IsNullOrEmpty(touchpoint.placementId))
+                props["placementId"] = touchpoint.placementId;
+            if (!string.IsNullOrEmpty(touchpoint.item?.id))
+                props["itemId"] = touchpoint.item.id;
+            if (!string.IsNullOrEmpty(touchpoint.item?.type))
+                props["itemType"] = touchpoint.item.type;
+
+            _ = AnalyticsManager.SendEvent(
+                Constants.AnalyticsEvent.TOUCHPOINT_IMPRESSED,
+                0,
+                props.Count > 0 ? props : null);
         }
 
         /// <summary>

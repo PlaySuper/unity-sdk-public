@@ -727,13 +727,25 @@ namespace PlaySuperUnity
                 effectiveTouchpoint = ExtractUtmContentFromUrl(url);
             }
 
+            // Dynamic Asset attribution — the server appends pick_id to every CTA
+            // URL it personalises (v1 and v2), and product CTAs carry the product
+            // id in their path. Reading both off the URL means every click event
+            // carries them with no caller changes.
+            string pickId = ExtractQueryParamFromUrl(url, "pick_id");
+            string productId = ExtractProductIdFromUrl(url);
+
             Dictionary<string, object> touchpointProps = null;
-            if (!string.IsNullOrEmpty(effectiveTouchpoint))
+            if (!string.IsNullOrEmpty(effectiveTouchpoint) ||
+                !string.IsNullOrEmpty(pickId) ||
+                !string.IsNullOrEmpty(productId))
             {
-                touchpointProps = new Dictionary<string, object>
-                {
-                    { "touchpointName", effectiveTouchpoint }
-                };
+                touchpointProps = new Dictionary<string, object>();
+                if (!string.IsNullOrEmpty(effectiveTouchpoint))
+                    touchpointProps["touchpointName"] = effectiveTouchpoint;
+                if (!string.IsNullOrEmpty(pickId))
+                    touchpointProps["pick_id"] = pickId;
+                if (!string.IsNullOrEmpty(productId))
+                    touchpointProps["productId"] = productId;
             }
             _ = AnalyticsManager.SendEvent(Constants.AnalyticsEvent.TOUCHPOINT_CLICKED, 0, touchpointProps);
 
@@ -761,6 +773,16 @@ namespace PlaySuperUnity
         /// </summary>
         private static string ExtractUtmContentFromUrl(string url)
         {
+            return ExtractQueryParamFromUrl(url, "utm_content");
+        }
+
+        /// <summary>
+        /// Extract one query parameter's value from a URL.
+        /// Returns null if the URL has no query string or no such param.
+        /// Handles URL-encoded values and ignores anything after a fragment (#).
+        /// </summary>
+        private static string ExtractQueryParamFromUrl(string url, string paramName)
+        {
             if (string.IsNullOrEmpty(url)) return null;
 
             int queryStart = url.IndexOf('?');
@@ -771,7 +793,7 @@ namespace PlaySuperUnity
                 ? url.Substring(queryStart + 1, fragmentStart - queryStart - 1)
                 : url.Substring(queryStart + 1);
 
-            const string key = "utm_content=";
+            string key = paramName + "=";
             foreach (var pair in query.Split('&'))
             {
                 if (pair.StartsWith(key, StringComparison.Ordinal))
@@ -782,6 +804,28 @@ namespace PlaySuperUnity
                 }
             }
             return null;
+        }
+
+        /// <summary>
+        /// Extract the product id from a store product-page URL
+        /// (…/gcommerce/products/&lt;uuid&gt;). Returns null for any other URL.
+        /// </summary>
+        private static string ExtractProductIdFromUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url)) return null;
+
+            const string marker = "/gcommerce/products/";
+            int start = url.IndexOf(marker, StringComparison.Ordinal);
+            if (start < 0) return null;
+            start += marker.Length;
+
+            int end = start;
+            while (end < url.Length && url[end] != '?' && url[end] != '#' && url[end] != '/')
+                end++;
+
+            string id = url.Substring(start, end - start);
+            // A product id is a uuid; anything else is some other route.
+            return id.Length == 36 ? id : null;
         }
 
         /// <summary>
@@ -2591,14 +2635,22 @@ namespace PlaySuperUnity
         }
 
         /// <summary>
-        /// Fire-and-forget background fetch of game data so future events can include
-        /// it locally. Safe to call repeatedly — coalesces on the in-flight fetch.
+        /// Background fetch of game data so events can include it locally. Safe to
+        /// call repeatedly — every caller shares the one in-flight fetch's Task, so
+        /// awaiting it (bounded) is how SendEvent gets a reliable gameId.
         /// </summary>
-        private static bool _gameDataFetchInFlight = false;
-        internal static async Task WarmGameDataCache()
+        private static Task _gameDataWarmTask;
+        internal static Task WarmGameDataCache()
         {
-            if (gameData != null || _gameDataFetchInFlight) return;
-            _gameDataFetchInFlight = true;
+            if (gameData != null) return Task.CompletedTask;
+            var inFlight = _gameDataWarmTask;
+            if (inFlight != null && !inFlight.IsCompleted) return inFlight;
+            _gameDataWarmTask = FetchGameDataOnce();
+            return _gameDataWarmTask;
+        }
+
+        private static async Task FetchGameDataOnce()
+        {
             try
             {
                 var fetched = await GameManager.GetGameData();
@@ -2607,10 +2659,6 @@ namespace PlaySuperUnity
             catch (Exception ex)
             {
                 Debug.LogWarning($"[Analytics] WarmGameDataCache failed: {ex.Message}");
-            }
-            finally
-            {
-                _gameDataFetchInFlight = false;
             }
         }
 
@@ -2629,12 +2677,16 @@ namespace PlaySuperUnity
                 string capturedUserId = userId;
                 GameData localGameData = gameData;
 
-                // Kick off a background fetch if we don't have gameData yet — future
-                // events benefit, but DON'T block this one. The server enriches
-                // game/studio context from the batch-level apiKey.
+                // No cached gameData yet: wait briefly (bounded) for the shared
+                // warm fetch so this event ships WITH gameId — SendEvent callers
+                // all fire-and-forget, so nothing user-facing blocks on this. If
+                // the fetch outruns the budget the event ships without it and the
+                // server falls back to the batch-level apiKey enrichment.
                 if (localGameData == null)
                 {
-                    _ = WarmGameDataCache();
+                    const int gameDataWaitMs = 1500;
+                    await Task.WhenAny(WarmGameDataCache(), Task.Delay(gameDataWaitMs));
+                    localGameData = gameData;
                 }
 
                 // IP from cache only — never block. _ = NetworkUtils.GetPublicIPAddress()
