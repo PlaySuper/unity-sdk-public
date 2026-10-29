@@ -781,7 +781,7 @@ namespace PlaySuperUnity
         /// Returns null if the URL has no query string or no such param.
         /// Handles URL-encoded values and ignores anything after a fragment (#).
         /// </summary>
-        private static string ExtractQueryParamFromUrl(string url, string paramName)
+        internal static string ExtractQueryParamFromUrl(string url, string paramName)
         {
             if (string.IsNullOrEmpty(url)) return null;
 
