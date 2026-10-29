@@ -637,5 +637,69 @@ namespace PlaySuperUnity
                 return null;
             }
         }
+
+        /// <summary>
+        /// Report that a v1 touchpoint was actually drawn on screen.
+        ///
+        /// <para>
+        /// Call this once, right after rendering the response returned by
+        /// <see cref="GetTouchpointByName"/> / <see cref="GetTouchpointById"/>
+        /// (a fetch alone is not an impression — the game may fetch and never
+        /// show it). Emits <c>ps_sdk.touchpoint_impressed</c>. v1 responses
+        /// carry no top-level pick id, so the Dynamic Asset <c>pick_id</c> is
+        /// recovered from the first CTA URL in the node tree — the server
+        /// appends it there for cohort-enabled games. Fire-and-forget and safe
+        /// to call with a null response (it does nothing).
+        /// </para>
+        /// </summary>
+        /// <param name="touchpoint">The response a fetch call returned.</param>
+        public static void TrackImpression(TouchpointResponse touchpoint)
+        {
+            if (touchpoint == null)
+            {
+                return;
+            }
+
+            var props = new Dictionary<string, object>();
+            string pickId = FindPickId(touchpoint.nodes);
+            if (!string.IsNullOrEmpty(pickId))
+                props["pick_id"] = pickId;
+            if (!string.IsNullOrEmpty(touchpoint.name))
+                props["touchpointName"] = touchpoint.name;
+            if (!string.IsNullOrEmpty(touchpoint.id))
+                props["touchpointId"] = touchpoint.id;
+
+            _ = AnalyticsManager.SendEvent(
+                Constants.AnalyticsEvent.TOUCHPOINT_IMPRESSED,
+                0,
+                props.Count > 0 ? props : null);
+        }
+
+        /// <summary>
+        /// First pick_id found in any CTA URL in the node tree (depth-first,
+        /// popups included). The server personalises one pick per v1 serve, so
+        /// every personalised CTA in the tree carries the same value.
+        /// </summary>
+        private static string FindPickId(TouchpointNode[] nodes)
+        {
+            if (nodes == null) return null;
+            foreach (var node in nodes)
+            {
+                if (node == null) continue;
+
+                string found = PlaySuperUnitySDK.ExtractQueryParamFromUrl(node.cta?.action, "pick_id");
+                if (!string.IsNullOrEmpty(found)) return found;
+
+                if (node.popup != null)
+                {
+                    found = FindPickId(new[] { node.popup });
+                    if (!string.IsNullOrEmpty(found)) return found;
+                }
+
+                found = FindPickId(node.nodes);
+                if (!string.IsNullOrEmpty(found)) return found;
+            }
+            return null;
+        }
     }
 }

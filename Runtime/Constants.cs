@@ -7,9 +7,10 @@ namespace PlaySuperUnity
             public const string GAME_OPEN = "ps_sdk.game_opened";
             public const string GAME_CLOSE = "ps_sdk.game_closed";
             public const string TOUCHPOINT_CLICKED = "ps_sdk.touchpoint_clicked";
-            // Emitted by TouchpointV2Manager.TrackImpression when the game reports
-            // a served touchpoint actually drawn on screen. Carries pick_id so the
-            // Dynamic Asset funnel can join impression → click → order.
+            // Emitted by TouchpointV2Manager.TrackImpression / TouchpointManager
+            // .TrackImpression when the game reports a served touchpoint actually
+            // drawn on screen. Carries pick_id so the Dynamic Asset funnel can
+            // join impression → click → order.
             public const string TOUCHPOINT_IMPRESSED = "ps_sdk.touchpoint_impressed";
             public const string STORE_OPEN = "ps_sdk.store_opened";
             public const string STORE_CLOSE = "ps_sdk.store_closed";
@@ -27,7 +28,7 @@ namespace PlaySuperUnity
 
         // SDK version — keep in sync with package.json. Attached to telemetry
         // (e.g. ps_sdk.previous_exit) so events can be sliced by SDK version.
-        internal const string SDK_VERSION = "4.7.0";
+        internal const string SDK_VERSION = "4.8.0";
 
         // Analytics API endpoints (same as playsuper-store and playsuper-api)
         internal const string PS_ANALYTICS_URL = "https://analytics.playsuper.club";
